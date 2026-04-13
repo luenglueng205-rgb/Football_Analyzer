@@ -132,6 +132,46 @@ def generate_openclaw_tools_json():
                     },
                     "required": ["chart_type", "chart_data", "title"]
                 }
+            },
+            {
+                "name": "run_monte_carlo_ht_ft",
+                "description": "执行蒙特卡洛时间轴比赛模拟，针对“半全场”(HT/FT) 玩法。利用两队的预期进球数 (xG)，在毫秒级模拟10000次90分钟比赛进程，精确计算出9种半全场赛果(如胜平、胜胜)的概率。适用于竞彩和北京单场的半全场预测。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "home_xg": {
+                            "type": "number",
+                            "description": "主队全场预期进球数 (xG)，如 1.85"
+                        },
+                        "away_xg": {
+                            "type": "number",
+                            "description": "客队全场预期进球数 (xG)，如 0.95"
+                        }
+                    },
+                    "required": ["home_xg", "away_xg"]
+                }
+            },
+            {
+                "name": "get_match_environment_impact",
+                "description": "分析非结构化环境因素（天气和裁判）。将天气状况（如大雨、狂风）和裁判历史执法尺度（点球率、出牌率）转化为定量的 xG 修正系数。必须在调用泊松分布工具之前使用，以修正基础预期进球数。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "match_id": {
+                            "type": "string",
+                            "description": "比赛的唯一标识符"
+                        },
+                        "weather_desc": {
+                            "type": "string",
+                            "description": "天气描述的英文文本，如 'Heavy rain and very windy'"
+                        },
+                        "referee_name": {
+                            "type": "string",
+                            "description": "主裁判的英文姓名，如 'Anthony Taylor'"
+                        }
+                    },
+                    "required": ["match_id", "weather_desc", "referee_name"]
+                }
             }
         ]
     }

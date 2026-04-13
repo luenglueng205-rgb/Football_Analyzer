@@ -1,7 +1,16 @@
 import os
 import sys
 import json
-from typing import Dict, List, Any
+import math
+import random
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+
+from tools.monte_carlo_simulator import run_monte_carlo_ht_ft
+from tools.environment_analyzer import get_match_environment_impact
+
+logging.basicConfig(level=logging.INFO)
 
 # 确保能引入底层系统
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

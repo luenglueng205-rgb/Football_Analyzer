@@ -38,13 +38,15 @@
 ## 步骤 2：获取真实基准与情报感知 (杜绝幻觉)
 挑选 2-4 场比赛后：
 1. **强制动作**：调用 `get_team_baseline_stats` 获取双方真实的场均进失球基准（$\mu$）。**绝不允许凭空捏造进球数**。
-2. 调用 `get_team_news_and_injuries` 获取伤停新闻。
-3. 在真实基准 $\mu$ 的基础上，根据新闻的主观判断进行微调（例如：主力前锋缺阵，将基准 $\mu$ 下调 0.2）。
+2. 如果有裁判和天气信息，使用 `get_match_environment_impact` 计算环境对比赛节奏的量化衰减或加成，修正刚才的 $\mu$ 值。
+3. 调用 `get_team_news_and_injuries` 阅读新闻。如果核心球员缺阵，利用常识推理，进一步微调修正后的预期进球数（例如核心前锋缺阵下调0.2 xG）。
 
 ## 步骤 3：数学模型与 EV 评估 (Dixon-Coles 修正)
-1. 调用 `calculate_poisson_probability`（底层已内置 Dixon-Coles 极低比分补偿）。
-2. 调用 `evaluate_betting_value`。
-3. **极度重要**：竞彩传 `jingcai`，北单传 `beidan`。获取 `expected_value` 和 `breakeven_odds`。若 EV < 0，必须冷血拒绝下注。
+1. 使用修正后的进球参数调用 `calculate_poisson_probability` 生成全场胜平负、比分和总进球矩阵（底层已内置 Dixon-Coles 极低比分补偿）。
+2. 如果涉及“半全场”或“上下单双”玩法，必须使用 `run_monte_carlo_ht_ft` 进行 90 分钟时间轴蒙特卡洛模拟，得出半全场9项结果的精确概率。
+3. 使用 `get_live_odds_and_water_changes` 查看机构赔率。
+4. 调用 `evaluate_betting_value` 结合赔率和你的泊松/蒙特卡洛概率，计算凯利准则仓位。
+5. **极度重要**：竞彩传 `jingcai`，北单传 `beidan`。获取 `expected_value` 和 `breakeven_odds`。若 EV < 0，必须冷血拒绝该选项。
 
 ## 步骤 4：智能组合与串关生成
 1. 竞彩：将挑选的【最佳玩法】组合，调用 `calculate_jingcai_parlay_prize` 计算成本和奖金区间，设计双选容错。
