@@ -32,10 +32,13 @@ class SmartMoneyTracker:
         :param current_odds: 即时赔率 {"home": 1.8, "draw": 3.6, "away": 4.2}
         """
         try:
+            # 兼容大模型或外部API传错类型，强转为浮点数
+            opening_odds = {k: float(v) for k, v in opening_odds.items() if float(v) > 0}
+            current_odds = {k: float(v) for k, v in current_odds.items() if float(v) > 0}
             open_probs = self._calculate_true_probabilities(opening_odds)
             curr_probs = self._calculate_true_probabilities(current_odds)
-        except ZeroDivisionError:
-            return {"error": "Odds cannot be zero."}
+        except (ZeroDivisionError, ValueError, TypeError) as e:
+            return {"error": f"赔率格式异常或存在非正数赔率，无法计算隐含概率: {e}"}
 
         alerts = []
         market_summary = {}

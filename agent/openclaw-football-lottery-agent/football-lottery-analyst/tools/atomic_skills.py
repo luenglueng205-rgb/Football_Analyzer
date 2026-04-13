@@ -111,6 +111,9 @@ def calculate_poisson_probability(home_expected_goals: float, away_expected_goal
     """
     from scipy.stats import poisson
     try:
+        if home_expected_goals < 0 or away_expected_goals < 0:
+            return json.dumps({"error": "预期进球数 (xG) 必须大于等于 0。大模型如果推导出了负数，请将其修正为 0.1"}, ensure_ascii=False)
+            
         max_goals = 10
         p_home = 0.0
         p_draw = 0.0
