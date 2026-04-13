@@ -172,6 +172,46 @@ def generate_openclaw_tools_json():
                     },
                     "required": ["match_id", "weather_desc", "referee_name"]
                 }
+            },
+            {
+                "name": "check_smart_money_alerts",
+                "description": "监控足球博彩赔率的异动，计算真实的隐含概率变化，识别是否有机构资金或聪明资金(Sharp Money)大量介入。输入初盘和即时盘的胜平负赔率。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "match_id": {
+                            "type": "string",
+                            "description": "比赛的唯一标识符"
+                        },
+                        "opening_odds": {
+                            "type": "object",
+                            "description": "初盘赔率字典，如 {'home': 2.1, 'draw': 3.4, 'away': 3.5}"
+                        },
+                        "current_odds": {
+                            "type": "object",
+                            "description": "即时赔率字典，如 {'home': 1.85, 'draw': 3.6, 'away': 4.2}"
+                        }
+                    },
+                    "required": ["match_id", "opening_odds", "current_odds"]
+                }
+            },
+            {
+                "name": "adjust_team_xg_by_players",
+                "description": "根据缺阵球员的 xG90(每90分钟预期进球) 和 xA90(每90分钟预期助攻) 数据，动态调整球队整体的基础 xG。专门用于精确量化伤病停赛对球队进攻火力的衰减影响。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "team_base_xg": {
+                            "type": "number",
+                            "description": "球队基于历史数据的初始预期进球(xG)，如 2.4"
+                        },
+                        "missing_players": {
+                            "type": "array",
+                            "description": "缺阵的核心球员列表，如 [{'name': 'De Bruyne', 'xg90': 0.25, 'xa90': 0.40, 'minutes_share': 1.0}]"
+                        }
+                    },
+                    "required": ["team_base_xg", "missing_players"]
+                }
             }
         ]
     }

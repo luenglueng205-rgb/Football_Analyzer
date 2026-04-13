@@ -9,6 +9,8 @@ from typing import Dict, List, Any, Optional
 
 from tools.monte_carlo_simulator import run_monte_carlo_ht_ft
 from tools.environment_analyzer import get_match_environment_impact
+from tools.smart_money_tracker import check_smart_money_alerts
+from tools.player_xg_adjuster import adjust_team_xg_by_players
 
 logging.basicConfig(level=logging.INFO)
 
