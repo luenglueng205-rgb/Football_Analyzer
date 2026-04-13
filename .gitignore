@@ -45,3 +45,5 @@ ehthumbs.db
 Thumbs.db
 
 global_macro_quant/
+football_analyzer/data/chinese_mapped/
+football_analyzer/data/raw/
