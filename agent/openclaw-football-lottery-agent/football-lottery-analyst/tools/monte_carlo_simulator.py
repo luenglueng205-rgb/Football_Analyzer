@@ -20,7 +20,7 @@ class MatchTimelineSimulator:
         """根据进球数判断赛果 H(胜) D(平) A(负)"""
         conditions = [home_goals > away_goals, home_goals == away_goals, home_goals < away_goals]
         choices = ['3', '1', '0']  # 3:胜, 1:平, 0:负 (符合中国体彩习惯)
-        return np.select(conditions, choices)
+        return np.select(conditions, choices, default='0')
 
     def simulate_ht_ft_probabilities(self, home_xg: float, away_xg: float) -> Dict[str, float]:
         """

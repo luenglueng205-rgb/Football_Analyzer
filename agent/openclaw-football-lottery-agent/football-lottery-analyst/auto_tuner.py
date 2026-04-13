@@ -28,8 +28,12 @@ class AutoTuningEvolutionEngine:
                 json.dump(default_weights, f, ensure_ascii=False, indent=2)
 
     def _read_current_weights(self) -> Dict[str, Any]:
-        with open(self.weights_file, 'r') as f:
-            return json.load(f)
+        try:
+            with open(self.weights_file, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            logger.error(f"配置文件 {self.weights_file} 格式损坏。返回空字典。")
+            return {}
 
     def _write_new_weights(self, weights: Dict[str, Any]):
         with open(self.weights_file, 'w') as f:
