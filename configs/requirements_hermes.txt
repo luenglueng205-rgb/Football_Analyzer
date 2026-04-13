@@ -1,0 +1,4 @@
+# NousResearch Hermes Agent
+hermes-agent
+openai
+pydantic
