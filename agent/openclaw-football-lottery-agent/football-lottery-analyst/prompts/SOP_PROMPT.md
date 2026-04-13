@@ -37,16 +37,17 @@
 
 ## 步骤 2：获取真实基准与情报感知 (杜绝幻觉)
 挑选 2-4 场比赛后：
-1. **强制动作**：调用 `get_team_baseline_stats` 获取双方真实的场均进失球基准（$\mu$）。**绝不允许凭空捏造进球数**。
-2. 如果有裁判和天气信息，使用 `get_match_environment_impact` 计算环境对比赛节奏的量化衰减或加成，修正刚才的 $\mu$ 值。
-3. 使用 `get_team_news_and_injuries` 阅读新闻。如果核心球员缺阵，必须调用 `adjust_team_xg_by_players` 并输入该球员的 xG90 和 xA90，精确量化扣除其进攻火力，得到最新的调整后预期进球数。
+1. **强制动作**：判断比赛阶段。如果是赛季初（小于5场比赛）、或者刚刚换帅，**严禁使用单纯的历史均值**。必须调用 `get_bayesian_xg_prior`，结合球队身价等级和新帅红利，进行贝叶斯先验推断，得到后验 xG。如果是赛季中后期，正常使用 `get_team_baseline_stats` 获取历史 $\mu$ 值。
+2. 如果有裁判和天气信息，使用 `get_match_environment_impact` 计算环境对比赛节奏的量化衰减或加成，修正刚才的 xG 值。
+3. 使用 `get_team_news_and_injuries` 阅读新闻。如果核心球员缺阵，必须调用 `adjust_team_xg_by_players` 精确量化扣除其进攻火力。如果新闻有明显倾向性，评估情感得分 (Sentiment Score)。
 
 ## 步骤 3：数学模型与 EV 评估 (Dixon-Coles 修正)
 1. 使用最终修正后的进球参数调用 `calculate_poisson_probability` 生成全场胜平负、比分和总进球矩阵。
-2. 如果涉及“半全场”或“上下单双”玩法，必须使用 `run_monte_carlo_ht_ft` 进行 90 分钟时间轴蒙特卡洛模拟，得出半全场9项结果的精确概率。
+2. 如果涉及“半全场”或“上下单双”玩法，必须使用 `run_monte_carlo_ht_ft` 进行 90 分钟时间轴蒙特卡洛模拟。
 3. 使用 `get_live_odds_and_water_changes` 获取机构初盘和即时赔率。
-4. **强制风控**：调用 `check_smart_money_alerts` 监测赔率异动，如果检测到客队有“聪明资金”大量介入，你必须放弃主队方向的推荐！
-5. 使用 `evaluate_betting_value` 结合赔率和你的最终概率，计算凯利准则仓位。如果 EV < 0，必须拒绝该选项。
+4. **市场微观结构与 CLV 预测**：当找到具备 +EV（正期望）的盘口时，调用 `predict_closing_line_movement`，输入真实概率、当前赔率和新闻情感得分。如果工具预测赔率将要暴跌，立即下达 `URGENT_BUY` 指令抢下高赔率。
+5. **强制风控**：调用 `check_smart_money_alerts` 监测赔率异动，如果检测到客队有“聪明资金”大量介入，你必须放弃主队方向的推荐！
+6. **组合资金管理**：如果你推荐了多场比赛组合，**绝对不允许孤立地分别计算单场凯利**。必须将所有推荐的比赛收集起来，调用 `optimize_multi_match_portfolio`，进行同步凯利与马科维茨风险平价优化，系统会自动为你分配一个确保总暴露度不超过15%的科学持仓比例。
 
 ## 步骤 4：智能组合与串关生成
 1. 竞彩：将挑选的【最佳玩法】组合，调用 `calculate_jingcai_parlay_prize` 计算成本和奖金区间，设计双选容错。

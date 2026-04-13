@@ -212,6 +212,76 @@ def generate_openclaw_tools_json():
                     },
                     "required": ["team_base_xg", "missing_players"]
                 }
+            },
+            {
+                "name": "get_bayesian_xg_prior",
+                "description": "贝叶斯动态更新引擎。当处于赛季初、球队刚刚换帅、或者历史比赛数据少于5场时使用。它结合球队身价等级和新帅加成，计算出一个贝叶斯先验的 xG (预期进球)，以取代失效的历史均值。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "team_value_tier": {
+                            "type": "integer",
+                            "description": "球队身价档次 (1-4)，1为最顶级的豪门，4为保级队或升班马。"
+                        },
+                        "recent_xg_avg": {
+                            "type": "number",
+                            "description": "球队近期极其有限的场均实际 xG。"
+                        },
+                        "matches_played": {
+                            "type": "integer",
+                            "description": "近期样本比赛场数 (越少代表置信度越低)。"
+                        },
+                        "is_new_manager": {
+                            "type": "boolean",
+                            "description": "球队是否刚刚更换主教练。"
+                        },
+                        "manager_elo_boost": {
+                            "type": "number",
+                            "description": "新帅带来的战术红利加成 (如名帅接手 +0.2，平庸教练 0.0)。"
+                        }
+                    },
+                    "required": ["team_value_tier", "recent_xg_avg", "matches_played", "is_new_manager", "manager_elo_boost"]
+                }
+            },
+            {
+                "name": "optimize_multi_match_portfolio",
+                "description": "同步凯利与马科维茨风险平价组合优化。当你筛选出多场具有 +EV (正期望) 的独立比赛并准备组合下注时，必须调用此工具。它会根据最大全局回撤上限 (15%)，同步计算并返回每场比赛的最佳资金分配比例，避免单日破产。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "bets": {
+                            "type": "array",
+                            "description": "潜在价值投注列表，格式为 [{'match_id': 'A', 'prob': 0.6, 'odds': 2.0}, ...]"
+                        }
+                    },
+                    "required": ["bets"]
+                }
+            },
+            {
+                "name": "predict_closing_line_movement",
+                "description": "击败收盘价 (CLV) 预测器。结合当前盘口赔率、模型的真实概率以及外部新闻情感热度，预测临场赔率是否会发生暴跌 (Steam Move)。用于决定是立刻抢下高赔率，还是观望。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "match_id": {
+                            "type": "string",
+                            "description": "比赛的唯一标识符"
+                        },
+                        "current_odds": {
+                            "type": "number",
+                            "description": "当前博彩公司开出的即时赔率 (如 2.10)"
+                        },
+                        "true_prob": {
+                            "type": "number",
+                            "description": "量化模型算出的真实胜率 (如 0.55)"
+                        },
+                        "news_sentiment": {
+                            "type": "number",
+                            "description": "外部新闻的情感热度得分 (-1.0 到 1.0，如重大利好为 0.8)"
+                        }
+                    },
+                    "required": ["match_id", "current_odds", "true_prob", "news_sentiment"]
+                }
             }
         ]
     }
