@@ -1,6 +1,6 @@
-# 中国体育彩票足球智能分析系统 v3.0 Pro (Football Analyst Agent)
+# 中国体育彩票足球智能分析系统 v4.0 (Native Multi-Agent Workspace)
 
-![Version](https://img.shields.io/badge/version-3.0%20Pro-blue.svg)
+![Version](https://img.shields.io/badge/version-4.0%20Native-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-green.svg)
 ![Platform](https://img.shields.io/badge/platform-OpenClaw%20%7C%20WorkBuddy-orange.svg)
 
