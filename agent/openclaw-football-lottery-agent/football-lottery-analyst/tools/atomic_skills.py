@@ -114,6 +114,10 @@ def calculate_poisson_probability(home_expected_goals: float, away_expected_goal
         if home_expected_goals < 0 or away_expected_goals < 0:
             return json.dumps({"error": "预期进球数 (xG) 必须大于等于 0。大模型如果推导出了负数，请将其修正为 0.1"}, ensure_ascii=False)
             
+        # 防止大模型幻觉传入超大预期进球导致计算 e^(-lam) 变成 0 进而产生 NaN/Inf
+        if home_expected_goals > 20.0 or away_expected_goals > 20.0:
+            return json.dumps({"error": "预期进球数异常大。单场比赛的预期进球不能超过 20 个，请检查输入参数。"}, ensure_ascii=False)
+            
         max_goals = 10
         p_home = 0.0
         p_draw = 0.0

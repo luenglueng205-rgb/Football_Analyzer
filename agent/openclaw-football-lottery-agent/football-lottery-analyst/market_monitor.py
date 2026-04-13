@@ -51,22 +51,38 @@ class ActiveMarketMonitor:
         ]
 
     def _push_alert_to_risk_manager(self, alert_data: Dict[str, Any]):
-        """将高危警报写入风控师的工作区队列"""
+        """将高危警报写入风控师的工作区队列 (增加文件锁保护)"""
+        import fcntl
+        lock_file = self.alert_queue_file + ".lock"
+        
         try:
-            with open(self.alert_queue_file, 'r') as f:
-                alerts = json.load(f)
+            with open(lock_file, 'w') as lock:
+                # 阻塞式获取排他锁
+                fcntl.flock(lock, fcntl.LOCK_EX)
                 
-            # 避免重复推送相同比赛的警报
-            if not any(a["match_id"] == alert_data["match_id"] for a in alerts):
-                alert_data["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
-                alerts.append(alert_data)
+                with open(self.alert_queue_file, 'r') as f:
+                    alerts = json.load(f)
+                    
+                # 避免重复推送相同比赛的警报
+                if not any(a["match_id"] == alert_data["match_id"] for a in alerts):
+                    alert_data["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                    alerts.append(alert_data)
+                    
+                    with open(self.alert_queue_file, 'w') as f:
+                        json.dump(alerts, f, ensure_ascii=False, indent=2)
+                    logger.critical(f"🚨 [主动风控拦截] 已向风控师推送高危警报: {alert_data['match_id']}")
+                    
+                # 释放锁
+                fcntl.flock(lock, fcntl.LOCK_UN)
                 
-                with open(self.alert_queue_file, 'w') as f:
-                    json.dump(alerts, f, ensure_ascii=False, indent=2)
-                logger.critical(f"🚨 [主动风控拦截] 已向风控师推送高危警报: {alert_data['match_id']}")
-                
+        except json.JSONDecodeError:
+             logger.error("队列文件损坏，正在重置...")
+             with open(self.alert_queue_file, 'w') as f:
+                 json.dump([alert_data], f, ensure_ascii=False, indent=2)
+             if 'lock' in locals(): fcntl.flock(lock, fcntl.LOCK_UN)
         except Exception as e:
             logger.error(f"推送警报失败: {e}")
+            if 'lock' in locals(): fcntl.flock(lock, fcntl.LOCK_UN)
 
     def run_monitor_loop(self, max_iterations: int = 1):
         """运行监控循环 (实战中 max_iterations 应为无穷大)"""

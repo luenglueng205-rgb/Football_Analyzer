@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from typing import Dict, Any, List
 
 logging.basicConfig(level=logging.INFO)
@@ -33,12 +34,17 @@ class SmartMoneyTracker:
         """
         try:
             # 兼容大模型或外部API传错类型，强转为浮点数
-            opening_odds = {k: float(v) for k, v in opening_odds.items() if float(v) > 0}
-            current_odds = {k: float(v) for k, v in current_odds.items() if float(v) > 0}
+            opening_odds = {k: float(v) for k, v in opening_odds.items() if float(v) > 0 and not math.isnan(float(v))}
+            current_odds = {k: float(v) for k, v in current_odds.items() if float(v) > 0 and not math.isnan(float(v))}
+            
+            # 确保传入的不是全部被过滤掉的空字典
+            if not opening_odds or not current_odds:
+                raise ValueError("赔率字典在清洗后为空，可能传入了全为 NaN 或负数的无效数据")
+                
             open_probs = self._calculate_true_probabilities(opening_odds)
             curr_probs = self._calculate_true_probabilities(current_odds)
         except (ZeroDivisionError, ValueError, TypeError) as e:
-            return {"error": f"赔率格式异常或存在非正数赔率，无法计算隐含概率: {e}"}
+            return {"error": f"赔率格式异常或存在非正数/无效赔率，无法计算隐含概率: {e}"}
 
         alerts = []
         market_summary = {}
