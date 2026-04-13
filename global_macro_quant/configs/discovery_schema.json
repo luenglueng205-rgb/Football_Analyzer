@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dynamic Discovery Skill Tools",
+  "description": "Tools for the Macro Analyst to dynamically discover and learn new skills from OpenClaw/WorkBuddy marketplaces.",
+  "type": "object",
+  "properties": {
+    "discover_and_learn_skill": {
+      "type": "object",
+      "description": "Search the skill marketplace and dynamically load a new skill into the agent's context.",
+      "properties": {
+        "marketplace": {
+          "type": "string",
+          "enum": ["openclaw", "workbuddy"],
+          "description": "The marketplace to search for the skill."
+        },
+        "query": {
+          "type": "string",
+          "description": "Natural language query describing the required skill (e.g., 'real-time fed interest rate probabilities')."
+        }
+      },
+      "required": ["marketplace", "query"]
+    }
+  }
+}
