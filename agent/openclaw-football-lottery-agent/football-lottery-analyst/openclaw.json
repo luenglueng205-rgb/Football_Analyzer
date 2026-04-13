@@ -1,7 +1,7 @@
 {
   "$schema": "https://openclaw.ai/schema.json",
   "name": "football-lottery-analyst-pro",
-  "version": "3.0.0",
+  "version": "2026.04.11",
   "description": "中国体育彩票足球智能分析原生多智能体系统 (Native Multi-Agent Workspace)",
   "homepage": "https://github.com/luenglueng205-rgb/Football-AnalystAgent",
 
