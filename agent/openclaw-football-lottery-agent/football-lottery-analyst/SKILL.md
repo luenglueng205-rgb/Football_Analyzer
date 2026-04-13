@@ -33,7 +33,12 @@ metadata: {"openclaw": {
   "requires": {"bins": ["python3"], "env": [], "config": []},
   "os": ["darwin", "linux"],
   "always": true
-}}
+},
+  "workbuddy": {
+    "capabilities": ["multi_agent", "file_sandbox", "local_execution", "dynamic_skill_discovery", "background_daemons"],
+    "permissions": ["folder_read", "folder_write"]
+  }
+}
 ---
 
 # 足球彩票分析Agent v3.0 Pro
