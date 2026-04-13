@@ -1,0 +1,42 @@
+{
+  "name": "quant_tools",
+  "description": "全球宏观量化投资底座工具集",
+  "tools": [
+    {
+      "name": "calculate_risk_parity_portfolio",
+      "description": "执行风险平价(Risk Parity)最优化计算，摒弃传统均值方差模型。确保输入的每种资产(如股票、债券、黄金)在投资组合中的风险贡献度相等。用于防止投资组合在宏观黑天鹅事件中被高波动资产(如比特币)拖垮。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "asset_returns_json": {
+            "type": "string",
+            "description": "包含多项资产对齐后的历史收益率时间序列的 JSON 字符串。格式需为 { 'AssetA': [0.01, -0.02, ...], 'AssetB': [...] }"
+          }
+        },
+        "required": ["asset_returns_json"]
+      }
+    },
+    {
+      "name": "run_historical_backtest",
+      "description": "事件驱动的向量化历史回测引擎。在制定出目标仓位权重后，必须调用此工具在历史数据沙箱中验证其夏普比率、年化收益率和最大回撤(Max Drawdown)。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "asset_prices_json": {
+            "type": "string",
+            "description": "包含多项资产对齐后的历史收盘价时间序列的 JSON 字符串。格式需为 { 'AssetA': [100.0, 101.0, ...], 'AssetB': [...] }"
+          },
+          "target_weights": {
+            "type": "object",
+            "description": "目标仓位权重字典，总和必须为1.0。例如: {'SPY': 0.4, 'TLT': 0.6}"
+          },
+          "initial_capital": {
+            "type": "number",
+            "description": "期初回测资金，默认为 100000.0"
+          }
+        },
+        "required": ["asset_prices_json", "target_weights"]
+      }
+    }
+  ]
+}
