@@ -1,0 +1,252 @@
+{
+  "$schema": "https://openclaw.ai/schema.json",
+  "name": "football-lottery-analyst",
+  "version": "1.0.0",
+  "description": "中国体育彩票足球彩票智能分析多Agent系统",
+  "homepage": "https://github.com/codebuddy/football-lottery-agent",
+
+  "providers": {
+    "openai": {
+      "type": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "${OPENAI_API_KEY}"
+    },
+    "anthropic": {
+      "type": "anthropic",
+      "baseUrl": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}"
+    }
+  },
+
+  "agents": {
+    "defaults": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "maxTokens": 8192,
+      "temperature": 0.7,
+      "subagents": {
+        "maxConcurrent": 8,
+        "maxSpawnDepth": 2,
+        "maxChildrenPerAgent": 5,
+        "runTimeoutSeconds": 600,
+        "thinking": "medium",
+        "cleanup": "delete"
+      }
+    },
+
+    "list": [
+      {
+        "id": "main",
+        "name": "足球彩票分析师",
+        "description": "主智能体，协调各专业子智能体完成分析任务",
+        "default": true,
+        "workspace": "agents/main/workspace",
+        "agentDir": "agents/main/agent",
+        "model": "claude-opus-4-20250514",
+        "systemPrompt": "你是足球彩票智能分析系统的主智能体。负责任务调度和协调各专业子智能体。当用户请求分析时，你应该调用 bash 运行 main.py 脚本获取结果，并将结果总结给用户。",
+        "skills": ["football-lottery-analyst"],
+        "tools": ["bash"],
+        "sandbox": {
+          "mode": "off"
+        }
+      },
+      {
+        "id": "orchestrator",
+        "name": "调度中心",
+        "description": "任务调度和协调中心",
+        "workspace": "agents/orchestrator/workspace",
+        "agentDir": "agents/orchestrator/agent",
+        "model": "claude-opus-4-20250514",
+        "systemPrompt": "你是足球彩票分析系统的调度中心，负责协调各专业Agent完成分析任务。",
+        "skills": ["football-lottery-analyst"],
+        "tools": ["read", "write", "glob"],
+        "subagents": {
+          "allowAgents": ["scout", "analyst", "strategist", "risk-manager"]
+        },
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "scout",
+        "name": "情报搜集Agent",
+        "description": "搜集球队情报：阵容、伤病、天气、历史",
+        "workspace": "agents/scout/workspace",
+        "agentDir": "agents/scout/agent",
+        "model": "claude-sonnet-4-20250514",
+        "systemPrompt": "你是情报搜集专家，负责收集球队的最新状态信息。",
+        "skills": ["football-lottery-analyst"],
+        "tools": ["read", "write", "glob", "http_request"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "analyst",
+        "name": "赔率分析Agent",
+        "description": "分析赔率异常、识别价值投注",
+        "workspace": "agents/analyst/workspace",
+        "agentDir": "agents/analyst/agent",
+        "model": "claude-sonnet-4-20250514",
+        "systemPrompt": "你是赔率分析专家，负责识别赔率异常和价值机会。",
+        "skills": ["odds-analyzer"],
+        "tools": ["read", "write", "bash"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "strategist",
+        "name": "策略制定Agent",
+        "description": "制定投注策略、生成串关方案",
+        "workspace": "agents/strategist/workspace",
+        "agentDir": "agents/strategist/agent",
+        "model": "claude-sonnet-4-20250514",
+        "systemPrompt": "你是策略制定专家，负责生成最优投注方案。",
+        "skills": ["mxn-calculator", "smart-selector"],
+        "tools": ["read", "write", "bash"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "risk-manager",
+        "name": "风险管理Agent",
+        "description": "控制风险、管理仓位、止损机制",
+        "workspace": "agents/risk-manager/workspace",
+        "agentDir": "agents/risk-manager/agent",
+        "model": "claude-sonnet-4-20250514",
+        "systemPrompt": "你是风险管理专家，负责控制投注风险。",
+        "skills": ["football-lottery-analyst"],
+        "tools": ["read", "write"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      }
+    ],
+
+    "bindings": [
+      {
+        "agentId": "main",
+        "match": {
+          "channel": "console",
+          "accountId": "default"
+        }
+      }
+    ]
+  },
+
+  "skills": {
+    "entries": {
+      "football-lottery-analyst": {
+        "enabled": true,
+        "workspace": ".",
+        "main": "skills/football-lottery-analyst/index.js"
+      },
+      "odds-analyzer": {
+        "enabled": true,
+        "workspace": "skills/odds-analyzer",
+        "main": "skills/odds-analyzer/index.js"
+      },
+      "mxn-calculator": {
+        "enabled": true,
+        "workspace": "skills/mxn-calculator",
+        "main": "skills/mxn-calculator/index.js"
+      },
+      "smart-selector": {
+        "enabled": true,
+        "workspace": "skills/smart-selector",
+        "main": "skills/smart-selector/index.js"
+      }
+    }
+  },
+
+  "memory": {
+    "episodic": {
+      "enabled": true,
+      "maxRecords": 1000,
+      "retention": "30d",
+      "storage": "data/memory/episodic.json"
+    },
+    "semantic": {
+      "enabled": true,
+      "domains": ["football", "lottery", "betting"],
+      "storage": "data/memory/semantic.json"
+    },
+    "procedural": {
+      "enabled": true,
+      "workflows": ["analysis", "strategy", "reflection"],
+      "storage": "data/memory/procedural.json"
+    }
+  },
+
+  "scheduler": {
+    "enabled": true,
+    "tasks": [
+      {
+        "id": "daily-analysis",
+        "cron": "0 8 * * *",
+        "handler": "orchestrator.daily_analysis",
+        "agent": "orchestrator",
+        "description": "每日早间分析"
+      },
+      {
+        "id": "odds-update",
+        "interval": "30m",
+        "handler": "analyst.update_odds",
+        "agent": "analyst",
+        "description": "赔率更新"
+      },
+      {
+        "id": "reflection-log",
+        "cron": "0 23 * * *",
+        "handler": "memory.reflector.auto_reflect",
+        "agent": "main",
+        "description": "每日反思日志"
+      }
+    ]
+  },
+
+  "webhook": {
+    "enabled": true,
+    "port": 8080,
+    "endpoints": [
+      {
+        "path": "/trigger",
+        "handler": "handlers.trigger_handler",
+        "auth": "signature",
+        "methods": ["POST"]
+      },
+      {
+        "path": "/odds-alert",
+        "handler": "handlers.odds_alert",
+        "auth": "api_key",
+        "methods": ["POST"]
+      },
+      {
+        "path": "/health",
+        "handler": "handlers.health",
+        "auth": "none",
+        "methods": ["GET"]
+      }
+    ],
+    "notifications": {
+      "wechat": {
+        "enabled": false,
+        "webhook_url": "${WECHAT_WEBHOOK_URL}"
+      },
+      "telegram": {
+        "enabled": false,
+        "bot_token": "${TELEGRAM_BOT_TOKEN}",
+        "chat_id": "${TELEGRAM_CHAT_ID}"
+      }
+    }
+  },
+
+  "logging": {
+    "level": "info",
+    "file": "logs/openclaw.log",
+    "maxSize": "10MB",
+    "maxFiles": 5
+  }
+}

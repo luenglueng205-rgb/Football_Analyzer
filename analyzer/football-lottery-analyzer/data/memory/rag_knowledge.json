@@ -1,0 +1,52 @@
+{
+  "ccf89e50": {
+    "chunk_id": "ccf89e50",
+    "content": "联赛: 英超\n特点: {\"avg_goals\": 2.8, \"home_win_rate\": 0.45, \"suitable_bet_types\": [\"胜平负\", \"大小球\", \"角球\"]}\n适合玩法: ['胜平负', '大小球', '角球']\n平均进球: 2.8\n主场胜率: 0.45",
+    "metadata": {
+      "type": "league",
+      "league_id": "epl",
+      "league_name": "英超"
+    },
+    "created_at": "2026-04-03T08:55:24.355244"
+  },
+  "0a705931": {
+    "chunk_id": "0a705931",
+    "content": "联赛: 西甲\n特点: {\"avg_goals\": 2.6, \"home_win_rate\": 0.48, \"suitable_bet_types\": [\"胜平负\", \"大小球\"]}\n适合玩法: ['胜平负', '大小球']\n平均进球: 2.6\n主场胜率: 0.48",
+    "metadata": {
+      "type": "league",
+      "league_id": "laliga",
+      "league_name": "西甲"
+    },
+    "created_at": "2026-04-03T08:55:24.355542"
+  },
+  "1d9a567e": {
+    "chunk_id": "1d9a567e",
+    "content": "联赛: 德甲\n特点: {\"avg_goals\": 3.1, \"home_win_rate\": 0.44, \"suitable_bet_types\": [\"大小球\", \"胜平负\"]}\n适合玩法: ['大小球', '胜平负']\n平均进球: 3.1\n主场胜率: 0.44",
+    "metadata": {
+      "type": "league",
+      "league_id": "bundesliga",
+      "league_name": "德甲"
+    },
+    "created_at": "2026-04-03T08:55:24.362916"
+  },
+  "78b62573": {
+    "chunk_id": "78b62573",
+    "content": "联赛: 意甲\n特点: {\"avg_goals\": 2.7, \"home_win_rate\": 0.47, \"suitable_bet_types\": [\"胜平负\", \"半全场\"]}\n适合玩法: ['胜平负', '半全场']\n平均进球: 2.7\n主场胜率: 0.47",
+    "metadata": {
+      "type": "league",
+      "league_id": "seriea",
+      "league_name": "意甲"
+    },
+    "created_at": "2026-04-03T08:55:24.365272"
+  },
+  "7736ace5": {
+    "chunk_id": "7736ace5",
+    "content": "联赛: 法甲\n特点: {\"avg_goals\": 2.5, \"home_win_rate\": 0.46, \"suitable_bet_types\": [\"胜平负\"]}\n适合玩法: ['胜平负']\n平均进球: 2.5\n主场胜率: 0.46",
+    "metadata": {
+      "type": "league",
+      "league_id": " Ligue1",
+      "league_name": "法甲"
+    },
+    "created_at": "2026-04-03T08:55:24.365433"
+  }
+}
