@@ -3,20 +3,35 @@ import os
 from typing import Dict, Any
 from agents.syndicate_agents import ScoutAgent, FundamentalQuantAgent, ContrarianQuantAgent, SmartMoneyQuantAgent, JudgeAgent
 
+import warnings
+
 class SyndicateOS:
+    """
+    [DEPRECATED] 负责统筹调度 Scout、Quant 和 Judge 的 AI 操作系统。
+    加入并发执行和熔断机制。
+    
+    Warning: This class is deprecated in favor of the new Event-Driven AgenticCore.
+    Please use core.agentic_core.AgenticCore instead.
+    """
     def __init__(self):
+        warnings.warn(
+            "SyndicateOS is deprecated. Use AgenticCore instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.scout = ScoutAgent()
         self.fundamentalist = FundamentalQuantAgent()
         self.contrarian = ContrarianQuantAgent()
         self.smart_money = SmartMoneyQuantAgent()
         self.judge = JudgeAgent()
         
-        rulebook_path = "docs/lottery_rulebook.md"
-        if os.path.exists(rulebook_path):
-            with open(rulebook_path, "r", encoding="utf-8") as f:
+        # 读取官方规则白皮书，作为最高风控宪法
+        rulebook_path = os.path.join(os.path.dirname(__file__), '..', 'docs', 'superpowers', 'specs', 'lottery_official_rulebook.md')
+        try:
+            with open(rulebook_path, 'r', encoding='utf-8') as f:
                 self.lottery_rulebook = f.read()
-        else:
-            self.lottery_rulebook = "Rulebook not found."
+        except Exception:
+            self.lottery_rulebook = "官方规则白皮书加载失败，请依赖内置知识。"
 
     async def process_match(self, home_team: str, away_team: str, lottery_desc: str) -> Dict[str, Any]:
         print(f"\n==================================================")
@@ -42,24 +57,31 @@ class SyndicateOS:
         smt_res = results[2] if not isinstance(results[2], Exception) else {"report": "聪明资金派崩溃"}
         
         # 3. Judge 终极裁决
+        print(f"\n[⚖️ Judge] 军师（Judge）正在综合三路诸将的情报，为主公定夺...")
+        
         judge_task = f"""
+主公（用户）命你作为本次数字博彩的首席军师（Judge）。
+请综合以下三位偏将（基本面、反直觉、聪明钱）的军情汇报，做出最终的战略定夺。
+你的决策不应是冷冰冰的代码，而是像诸葛亮一样有血有肉、有温度、始终将主公的本金安全放在第一位的智囊。
+
+如果三方冲突严重，请提醒主公“此战水深，臣建议按兵不动”。
+如果胜算极大，请推荐合理的“竞彩/北单”玩法（如单关、或者高价值的自由过关）。
+
 目标赛事：{home_team} vs {away_team}。当前彩种与玩法大类：{lottery_desc}。
 
 【必须遵守的体彩领域知识库 (Rulebook)】
 {self.lottery_rulebook}
 
-请主持以下辩论并做出最终的真金白银投资决策：
-
 【Scout 客观情报】
 {scout_res.get('report', '缺失')}
 
-【基本面派观点】
+=== 基本面校尉 ===
 {fun_res.get('report', '缺失')}
 
-【反买狗庄派观点】
+=== 反直觉奇兵 ===
 {con_res.get('report', '缺失')}
 
-【聪明资金派观点】
+=== 聪明钱密探 ===
 {smt_res.get('report', '缺失')}
 """
         judge_res = await self.judge.run(judge_task)
