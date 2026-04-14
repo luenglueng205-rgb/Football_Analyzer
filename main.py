@@ -150,6 +150,13 @@ class FootballLotteryMultiAgentSystem:
         
         # 准备输入参数
         league_code = _normalize_league(league)
+        
+        lottery_desc = {
+            "jingcai": "竞彩足球 (6种玩法：胜平负、让球、比分、总进球、半全场、混合过关)",
+            "beidan": "北京单场 (6种玩法：让球胜平负、上下单双、单场比分、半全场胜平负、总进球数、胜负过关)",
+            "traditional": "传统足彩 (4种玩法：14场胜负、任选9场、6场半全场、4场进球彩)"
+        }.get(lottery_type, lottery_type)
+
         params = {
             "league": league_code,
             "home_team": home_team,
@@ -159,6 +166,7 @@ class FootballLotteryMultiAgentSystem:
             "budget": budget,
             "bankroll": budget,
             "lottery_type": lottery_type,
+            "lottery_desc": lottery_desc,
             "risk_rules": {
                 "max_single_stake_ratio": 0.1,
                 "min_odds": 1.5,
@@ -171,7 +179,119 @@ class FootballLotteryMultiAgentSystem:
             params["markets"] = markets
         
         # 根据模式执行分析
-        if mode == "fast":
+        if mode == "ai_native":
+            # 这是 2026 最前沿的极简架构
+            import asyncio
+            from agents.ai_native_core import AINativeCoreAgent
+            
+            print(f"\n[🚀 2026 AI-Native 启动] 彻底剥离 Python 逻辑，全权交由 LLM Brain 调度。")
+            
+            agent = AINativeCoreAgent()
+            
+            initial_state = {
+                "current_match": {
+                    "league": league_code,
+                    "home_team": home_team,
+                    "away_team": away_team
+                },
+                "params": params
+            }
+            
+            try:
+                final_state = asyncio.run(agent.process(initial_state))
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+                final_state = loop.run_until_complete(agent.process(initial_state))
+                
+            return {
+                "status": "success",
+                "workflow": "pure_llm_agentic_2026",
+                "results": final_state
+            }
+            
+        elif mode == "2026":
+            # 引入 2026 Next-Gen 架构
+            import asyncio
+            from agents.graph_orchestrator import AsyncStateGraph
+            from agents.async_scout import AsyncScoutAgent
+            from agents.async_analyst import AsyncAnalystAgent
+            from agents.async_strategist import AsyncStrategistAgent
+            from agents.async_risk_manager import AsyncRiskManagerAgent
+            
+            print(f"\n[2026 架构启动] 模式: {lottery_type} | 并发图状态机运行中...")
+            
+            graph = AsyncStateGraph()
+            scout_agent = AsyncScoutAgent()
+            analyst_agent = AsyncAnalystAgent()
+            strategist_agent = AsyncStrategistAgent()
+            risk_manager_agent = AsyncRiskManagerAgent()
+            
+            # 添加节点
+            graph.add_node("scout", scout_agent.process)
+            graph.add_node("analyst", analyst_agent.process)
+            graph.add_node("strategist", strategist_agent.process)
+            
+            # Risk Manager 节点，需要特别处理打回逻辑（更新 debate_count）
+            async def risk_manager_node(state: dict) -> dict:
+                result = await risk_manager_agent.process(state)
+                risk_data = result.get("risk_manager_data", {})
+                if risk_data.get("debate_trigger"):
+                    return {
+                        "risk_manager_data": risk_data,
+                        "debate_count": state.get("debate_count", 0) + 1,
+                        "rejection_reason": risk_data.get("rejection_reason")
+                    }
+                return result
+            
+            graph.add_node("risk_manager", risk_manager_node)
+            
+            # 基础边
+            graph.add_edge("scout", "analyst")
+            graph.add_edge("analyst", "strategist")
+            graph.add_edge("strategist", "risk_manager")
+            
+            # 条件路由：决定是结束还是打回 strategist 重审
+            def route_from_risk(state: dict) -> str:
+                risk_data = state.get("risk_manager_data", {})
+                if risk_data.get("debate_trigger"):
+                    return "strategist"
+                return "END"
+                
+            graph.add_conditional_edge("risk_manager", route_from_risk)
+            
+            graph.set_entry_point("scout")
+            
+            initial_state = {
+                "current_match": {
+                    "league": league_code,
+                    "home_team": home_team,
+                    "away_team": away_team
+                },
+                "params": params,
+                "debate_count": 0,
+                "rejection_reason": ""
+            }
+            
+            try:
+                # 因为在 main 中调用，可能没有运行 event loop
+                final_state = asyncio.run(graph.compile_and_run(initial_state))
+            except RuntimeError:
+                # 应对嵌套的 event loop
+                loop = asyncio.get_event_loop()
+                final_state = loop.run_until_complete(graph.compile_and_run(initial_state))
+                
+            return {
+                "status": "success",
+                "workflow": "async_state_graph_2026",
+                "results": {
+                    "scout": final_state.get("scout_data", {}),
+                    "analyst": final_state.get("analyst_data", {}),
+                    "strategist": final_state.get("strategist_data", {}),
+                    "risk_manager": final_state.get("risk_manager_data", {})
+                }
+            }
+        
+        elif mode == "fast":
             result = self.agents["analyst"].process({"params": params})
         elif mode == "standard":
             # 并行执行 scout 和 analyst
@@ -269,7 +389,7 @@ class FootballLotteryMultiAgentSystem:
             league="英超",
             home_team=home_team,
             away_team=away_team,
-            mode="full"
+            mode="ai_native"
         )
         
         return self._format_result(result)
@@ -302,9 +422,19 @@ class FootballLotteryMultiAgentSystem:
         """格式化输出结果"""
         output = []
         output.append("\n" + "="*60)
-        output.append("分析结果 (Swarm Handoff 架构)")
+        output.append(f"分析结果 ({result.get('workflow', 'Swarm Handoff')})")
         output.append("="*60)
         
+        if result.get("workflow") == "pure_llm_agentic_2026":
+            report = result.get("results", {}).get("ai_native_report", "")
+            debate_report = result.get("results", {}).get("debate_judge_report", "")
+            output.append("\n[🏆 AI 原生深度推理报告]")
+            output.append(report)
+            output.append("\n" + "-"*60)
+            output.append("[👨‍⚖️ 激进派 vs 保守派 法官终极裁决]")
+            output.append(debate_report)
+            return "\n".join(output)
+            
         results = result.get("results", {})
         
         # 情报收集
@@ -558,10 +688,10 @@ def main():
     parser.add_argument("--away", type=str, help="客队名称")
     parser.add_argument("--odds", type=str, help="赔率JSON")
     parser.add_argument("--markets", type=str, help="市场JSON，例如: {\"totals\":{\"line\":2.5,\"over_odds\":1.9,\"under_odds\":1.9},\"handicap\":{\"line\":-0.5,\"home_odds\":1.95,\"away_odds\":1.85}}")
-    parser.add_argument("--lottery-type", choices=["jingcai", "beijing", "traditional"],
-                        default="jingcai", help="彩票玩法类型 (默认: jingcai)")
+    parser.add_argument("--lottery-type", choices=["jingcai", "beidan", "traditional"],
+                        default="jingcai", help="彩票玩法类型: jingcai, beidan(北京单场 6种玩法), traditional(传统足彩 4种玩法) (默认: jingcai)")
     parser.add_argument("--budget", type=float, default=100, help="投注预算")
-    parser.add_argument("--fast", action="store_true", help="快速分析模式")
+    parser.add_argument("--ai-native", action="store_true", help="使用 2026 AI-Native 纯原生架构进行分析")
     parser.add_argument("--reflect", action="store_true", help="执行赛后复盘与记忆更新 (需要 --result 参数)")
     parser.add_argument("--result", type=str, help="赛后结果JSON, e.g. '{\"home_goals\":2, \"away_goals\":1}'")
     
@@ -615,7 +745,7 @@ def main():
             markets=markets,
             budget=args.budget,
             lottery_type=args.lottery_type,
-            mode="fast" if args.fast else "full"
+            mode="ai_native" if args.ai_native else "2026"
         )
         
         print(json.dumps(result, ensure_ascii=False, indent=2))

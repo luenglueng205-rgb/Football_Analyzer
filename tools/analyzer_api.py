@@ -35,8 +35,8 @@ class AnalyzerAPI:
             response = requests.get(url, params=params, timeout=3)
             response.raise_for_status()
             return response.json()
-        except Exception:
-            return None
+        except Exception as e:
+            raise RuntimeError(f"HTTP GET failed for {url}: {e}")
 
     @staticmethod
     def _post(url: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -44,16 +44,16 @@ class AnalyzerAPI:
             response = requests.post(url, json=payload, timeout=3)
             response.raise_for_status()
             return response.json()
-        except Exception:
-            return None
+        except Exception as e:
+            raise RuntimeError(f"HTTP POST failed for {url}: {e}")
     
     @staticmethod
     def get_team_stats(team_name: str, league: str = None) -> Dict[str, Any]:
         """获取球队历史统计数据"""
         if not team_name:
-            return {}
+            raise ValueError("team_name cannot be empty")
         if not AnalyzerAPI.is_available():
-            return {}
+            raise ConnectionError("Analyzer API is not available")
         url = f"{ANALYZER_API_URL}/api/v1/data/team/{team_name}"
         params = {"league": league} if league else {}
         data = AnalyzerAPI._get(url, params=params) or {}
