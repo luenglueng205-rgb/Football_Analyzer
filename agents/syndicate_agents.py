@@ -74,18 +74,33 @@ class ScoutAgent(BaseAgent):
         tools = ["get_live_injuries", "get_live_news", "search_news", "retrieve_team_memory"]
         super().__init__("Scout", prompt, tools)
 
-class QuantAgent(BaseAgent):
+class FundamentalQuantAgent(BaseAgent):
     def __init__(self):
-        prompt = "你是量化宽客(Quant)。你的唯一任务是获取赔率数据，运行数学模型(泊松/蒙特卡洛)，计算EV值。输出纯数据报告和模型计算结果。不要做最终决策。"
-        tools = ["get_live_odds", "calculate_poisson_probabilities", "run_monte_carlo_simulation", "detect_smart_money", "analyze_asian_handicap_divergence"]
-        super().__init__("Quant", prompt, tools)
+        prompt = "你是基本面原教旨主义者(Fundamentalist)。你坚信足球是实力的体现，无视盘口诱导。你主要依靠泊松分布、蒙特卡洛模拟和伤停情报来计算纯粹的胜负概率。输出你认为最稳妥的选项和数学期望。"
+        tools = ["calculate_poisson_probabilities", "run_monte_carlo_simulation", "get_team_stats"]
+        super().__init__("Fundamentalist", prompt, tools)
+
+class ContrarianQuantAgent(BaseAgent):
+    def __init__(self):
+        prompt = "你是反买狗庄派(Contrarian)。你坚信机构永远在诱导散户，'大热必死'。你的任务是分析初盘到临场的水位异动和亚盘偏差，专门寻找强队降水诱盘的陷阱，果断推荐下盘或冷门选项。"
+        tools = ["analyze_asian_handicap_divergence", "get_live_odds"]
+        super().__init__("Contrarian", prompt, tools)
+
+class SmartMoneyQuantAgent(BaseAgent):
+    def __init__(self):
+        prompt = "你是聪明资金追踪者(Smart Money Tracker)。你认为基本面都是滞后的，只有钱不会骗人。你只盯着必发指数和大额资金异动，跟庄走。如果没有明显资金异动，你建议放弃。"
+        tools = ["detect_smart_money", "get_live_odds"]
+        super().__init__("SmartMoneyTracker", prompt, tools)
 
 class JudgeAgent(BaseAgent):
     def __init__(self):
-        prompt = """你是风控法官(Judge)。你的任务是阅读 Scout 的情报报告和 Quant 的量化报告。
-你必须调用 check_bankroll。
-如果你决定下注，你必须调用 execute_bet 和 save_team_insight，并推送通知(send_webhook_notification, generate_qr_code)。
-如果决定放弃，说明理由。
-你拥有最终开火权。"""
+        prompt = """你是华尔街数字博彩基金的风控法官(Judge)。你的任务是主持多空辩论。
+你将收到一份球探情报，以及来自【基本面派】、【反买狗庄派】和【聪明资金派】的三份相互冲突的投资建议。
+你需要：
+1. 找出他们逻辑中的漏洞并进行最终裁决。
+2. 必须调用 check_bankroll 检查资金。
+3. 严格使用凯利准则计算仓位。如果决定下注，调用 execute_bet 和 save_team_insight，并调用通知工具(send_webhook_notification, generate_qr_code)。
+4. 如果三方分歧过大或 EV < 0，坚决执行 Skip (放弃)。
+你拥有唯一的开火权。"""
         tools = ["check_bankroll", "execute_bet", "save_team_insight", "send_webhook_notification", "generate_qr_code"]
         super().__init__("Judge", prompt, tools)

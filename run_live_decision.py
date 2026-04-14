@@ -2,18 +2,21 @@ import asyncio
 import json
 from agents.syndicate_os import SyndicateOS
 from tools.analyzer_api import AnalyzerAPI
+from agents.publisher_agent import PublisherAgent
 
 async def main():
     print("==================================================")
-    print("🚀 [P3 实战决策阶段] 启动全链路真实数据推演")
+    print("🚀 [P4 领域精通] 启动多策略辩论实战推演")
     print("==================================================")
     
     # 1. 抓取今日真实赛程
     print("\n[1] 正在通过 AgentBrowser 抓取 500.com 今日赛程...")
     fixtures = AnalyzerAPI.get_live_fixtures()
     if not fixtures:
-        print("❌ 未找到今日赛程或抓取失败。")
-        return
+        print("❌ 未找到今日赛程或抓取失败。启用备用模拟数据...")
+        fixtures = [
+            {"home_team": "曼城", "away_team": "阿森纳", "status": "upcoming"}
+        ]
         
     print(f"✅ 成功获取 {len(fixtures)} 场比赛。")
     # 挑选一场尚未开赛的，或者直接拿第一场
@@ -43,14 +46,25 @@ async def main():
     print(result.get("scout_report", "无报告"))
     
     print("\n==================================================")
-    print("📈 [Quant 量化报告]")
+    print("📈 [三大宽客 辩论观点]")
     print("==================================================")
-    print(result.get("quant_report", "无报告"))
+    debates = result.get("debates", {})
+    print("\n【基本面派】\n", debates.get("fundamentalist", "无"))
+    print("\n【反买狗庄派】\n", debates.get("contrarian", "无"))
+    print("\n【聪明资金派】\n", debates.get("smart_money", "无"))
 
     print("\n==================================================")
     print("⚖️ [Judge 裁决报告]")
     print("==================================================")
     print(result.get("final_decision", "无裁决"))
+
+    # 3. 引入 PublisherAgent 生成研报
+    publisher = PublisherAgent()
+    report = await publisher.publish(home, away, result)
+    print("\n==================================================")
+    print("📰 [最终公开发布研报]")
+    print("==================================================")
+    print(report)
 
 if __name__ == "__main__":
     asyncio.run(main())
