@@ -2,9 +2,19 @@
 OpenClaw 2026.4 MCP Server Adapter
 This script exposes our quant tools via stdio MCP bridge so OpenClaw can discover and call them natively.
 """
+import os
 import sys
 import json
+import contextlib
+from pathlib import Path
 from typing import Dict, Any
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_PKG_DIR = WORKSPACE_ROOT / "runtime" / "football_analyzer"
+if str(RUNTIME_PKG_DIR) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_PKG_DIR))
+
+os.environ.setdefault("OPENCLAW_FOOTBALL_DATA_DIR", str(WORKSPACE_ROOT / "data"))
 
 from smart_money import detect_sharp_money
 from bayesian_xg import calculate_bayesian_xg
@@ -13,6 +23,7 @@ from asian_handicap_analyzer import AsianHandicapAnalyzer
 from parlay_filter_matrix import ParlayFilterMatrix
 
 from tools.tool_registry_v2 import get_mcp_tools, execute_tool
+import runtime_bridge
 import asyncio
 
 def handle_request_sync(req: Dict[str, Any]) -> Dict[str, Any]:
@@ -41,8 +52,48 @@ async def handle_request(req: Dict[str, Any]) -> Dict[str, Any]:
         args = params.get("arguments", {})
         
         try:
-            res = await execute_tool(name, args)
+            with contextlib.redirect_stdout(sys.stderr):
+                res = await execute_tool(name, args)
             return {"result": res}
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif method == "run_workflow":
+        params = req.get("params", {})
+        name = params.get("name")
+        args = params.get("arguments", {})
+        try:
+            workflow = getattr(runtime_bridge, name, None)
+            if workflow is None:
+                return {"error": f"Unknown workflow: {name}"}
+            if asyncio.iscoroutinefunction(workflow):
+                with contextlib.redirect_stdout(sys.stderr):
+                    return {"result": await workflow(**args)}
+            with contextlib.redirect_stdout(sys.stderr):
+                return {"result": workflow(**args)}
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif method == "daemon_start":
+        params = req.get("params", {})
+        args = params.get("arguments", {})
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                return {"result": runtime_bridge.daemon_start(**args)}
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif method == "daemon_stop":
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                return {"result": runtime_bridge.daemon_stop()}
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif method == "daemon_status":
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                return {"result": runtime_bridge.daemon_status()}
         except Exception as e:
             return {"error": str(e)}
             

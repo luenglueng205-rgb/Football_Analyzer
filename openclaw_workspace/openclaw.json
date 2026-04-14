@@ -1,0 +1,31 @@
+{
+  "name": "football-quant-tools",
+  "version": "1.0.0",
+  "description": "2026 OpenClaw Adapter for Elite Football Quantitative Analysis",
+  "workspace_type": "native_agent",
+  "agents": {
+    "main": {
+      "role": "Quant Architect",
+      "description": "主理量化分析逻辑，负责调用社区技能获取情报，并调用本地工具进行数学运算。",
+      "system_prompt_file": "docs/LOTTERY_RULES.md",
+      "tools": [
+        "detect_smart_money",
+        "calculate_bayesian_xg",
+        "calculate_poisson_probabilities",
+        "calculate_kelly_and_ev",
+        "@clawhub/global-weather-api",
+        "@workbuddy/enterprise-news-sentiment"
+      ]
+    }
+  },
+  "mcpServers": {
+    "football_quant": {
+      "command": "python3",
+      "args": ["src/mcp_server.py"]
+    }
+  },
+  "sandbox": {
+    "mode": "agent",
+    "network_access": true
+  }
+}
