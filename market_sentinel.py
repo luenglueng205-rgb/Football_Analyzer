@@ -1,84 +1,102 @@
 import asyncio
-import time
 import logging
+from typing import List, Dict
 from agents.syndicate_os import SyndicateOS
 from tools.analyzer_api import AnalyzerAPI
+from tools.pre_filter import MatchPreFilter
+from agents.publisher_agent import PublisherAgent
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class MarketSentinel:
-    """
-    P4 阶段：7x24 自动化市场监控与决策引擎 (Daemon)
-    真实拉取 500.com 赛程，循环驱动大模型分析。
-    """
-    def __init__(self):
-        self.agent = SyndicateOS()
-        self.polling_interval = 3600  # 1小时扫描一次全市场
-        self.analyzed_matches = set() # 记录已分析过的比赛，避免重复推送
+    def __init__(self, max_workers: int = 3):
+        self.os_system = SyndicateOS()
+        self.publisher = PublisherAgent()
+        self.pre_filter = MatchPreFilter()
+        self.polling_interval = 3600
+        self.analyzed_matches = set()
         
-    async def _fetch_market_scan(self):
-        """真实调用底层能力获取今日赛程，寻找机会"""
-        logging.info("[Sentinel] 正在连接数据织机获取今日实单赛程...")
+        # 协程池参数
+        self.max_workers = max_workers
+        self.queue = asyncio.Queue()
+
+    async def _worker(self, worker_id: int):
+        """消费者协程：从队列中取比赛进行深度分析"""
+        logging.info(f"[Worker-{worker_id}] 启动，等待任务...")
+        while True:
+            match = await self.queue.get()
+            home = match.get('home_team')
+            away = match.get('away_team')
+            match_key = f"{home}_vs_{away}"
+            
+            try:
+                logging.info(f"[Worker-{worker_id}] 🔴 开始深度分析: {match_key}")
+                
+                # 核心分析链路
+                res = await self.os_system.process_match(home, away, "竞彩足球")
+                
+                # 自动生成研报
+                await self.publisher.publish(home, away, res)
+                
+                # 记录已分析
+                self.analyzed_matches.add(match_key)
+                
+                logging.info(f"[Worker-{worker_id}] 🟢 完成分析: {match_key}")
+                
+                # 防封禁缓冲：分析完一场休息 10 秒
+                await asyncio.sleep(10)
+                
+            except Exception as e:
+                logging.error(f"[Worker-{worker_id}] 分析 {match_key} 异常: {e}")
+            finally:
+                self.queue.task_done()
+
+    async def _fetch_market_scan(self) -> List[Dict]:
+        """生产者：获取市场赛程并经过初筛漏斗"""
+        logging.info("[Sentinel] 获取今日实单赛程...")
         fixtures = AnalyzerAPI.get_live_fixtures()
         
-        upcoming_matches = [f for f in fixtures if f.get("status") == "upcoming"]
-        logging.info(f"[Sentinel] 今日共发现 {len(fixtures)} 场比赛，其中未开赛 {len(upcoming_matches)} 场。")
+        upcoming = [f for f in fixtures if f.get("status") == "upcoming"]
+        logging.info(f"[Sentinel] 发现 {len(upcoming)} 场未开赛。进入初筛漏斗...")
         
-        return upcoming_matches
+        # 初筛漏斗
+        valuable_matches = self.pre_filter.filter_matches(upcoming)
+        logging.info(f"[Sentinel] 初筛后剩余 {len(valuable_matches)} 场高价值比赛。")
+        
+        return valuable_matches
 
     async def run_forever(self):
         logging.info("==================================================")
-        logging.info("🛡️ 7x24 Market Sentinel Daemon Started (P4 Edition)")
+        logging.info("🛡️ 7x24 Market Sentinel (Worker Pool Edition)")
         logging.info("==================================================")
+        
+        # 启动消费者协程池
+        workers = [asyncio.create_task(self._worker(i)) for i in range(self.max_workers)]
         
         while True:
             try:
                 opportunities = await self._fetch_market_scan()
                 
+                # 投递任务
                 for opp in opportunities:
-                    home = opp.get('home_team')
-                    away = opp.get('away_team')
-                    match_key = f"{home}_vs_{away}"
-                    
-                    if match_key in self.analyzed_matches:
-                        continue # 已分析过
+                    match_key = f"{opp.get('home_team')}_vs_{opp.get('away_team')}"
+                    if match_key not in self.analyzed_matches:
+                        await self.queue.put(opp)
                         
-                    logging.warning(f"🚨 [ALERT] 发现新赛事机会: {home} vs {away}")
+                # 等待队列中的任务全部完成
+                if not self.queue.empty():
+                    logging.info(f"[Sentinel] 投递了 {self.queue.qsize()} 个新任务到池中，等待处理...")
+                    await self.queue.join()
+                    logging.info("[Sentinel] 本轮洪峰任务处理完毕。")
+                else:
+                    logging.info("[Sentinel] 当前无新任务。")
                     
-                    state = {
-                        "current_match": {
-                            "home_team": home,
-                            "away_team": away
-                        },
-                        "params": {
-                            "lottery_type": "jingcai",
-                            "lottery_desc": "竞彩足球 (单场/串关)"
-                        }
-                    }
-                    
-                    # 唤醒大模型进行深度决策
-                    logging.info(f"🧠 Waking up SyndicateOS for {match_key}...")
-                    result = await self.agent.process_match(home, away, state["params"]["lottery_desc"])
-                    
-                    # 分析完毕，加入已分析集合
-                    self.analyzed_matches.add(match_key)
-                    
-                    decision = result.get("final_decision", "")
-                    if "✅ 投注成功" in decision or "execute_bet" in decision or "ev" in decision.lower():
-                        logging.info(f"✅ AI 发现可投资机会！推送通知...")
-                        # 此时其实内部的大模型已经调用了 send_webhook_notification 和 generate_qr_code
-                    else:
-                        logging.info(f"⚠️ AI 放弃了 {match_key} (风控拦截)。")
-                    
-                    # 避免对 API 和模型造成太大压力，每场比赛分析间隔 1 分钟
-                    await asyncio.sleep(60)
-                    
-                logging.info(f"💤 Sentinel 本轮巡航结束，睡眠 {self.polling_interval} 秒...")
+                logging.info(f"💤 Sentinel 睡眠 {self.polling_interval} 秒...")
                 await asyncio.sleep(self.polling_interval)
                 
             except Exception as e:
-                logging.error(f"Sentinel encountered an error: {e}")
-                await asyncio.sleep(300) # 出错时休眠5分钟再试
+                logging.error(f"Sentinel 遭遇错误: {e}")
+                await asyncio.sleep(300)
 
 if __name__ == "__main__":
     sentinel = MarketSentinel()
