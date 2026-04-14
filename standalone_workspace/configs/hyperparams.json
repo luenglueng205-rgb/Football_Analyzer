@@ -1,0 +1,15 @@
+{
+  "bayesian_xg": {
+    "forward_injury_decay": 0.15,
+    "midfielder_injury_decay": 0.08,
+    "max_decay": 0.40
+  },
+  "smart_money": {
+    "sharp_threshold": 0.04,
+    "critical_threshold": 0.07
+  },
+  "kelly": {
+    "fraction": 0.25,
+    "max_single_stake": 0.10
+  }
+}

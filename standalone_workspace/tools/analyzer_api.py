@@ -2,6 +2,8 @@ import os
 import requests
 from typing import Dict, Any, List, Optional
 
+from tools.multisource_fetcher import MultiSourceFetcher
+
 ANALYZER_API_URL = os.getenv("ANALYZER_API_URL", "http://localhost:8000")
 
 class AnalyzerAPI:
@@ -10,6 +12,13 @@ class AnalyzerAPI:
     """
 
     _last_health_ok: Optional[bool] = None
+    _fetcher: Optional[MultiSourceFetcher] = None
+
+    @staticmethod
+    def _get_fetcher() -> MultiSourceFetcher:
+        if AnalyzerAPI._fetcher is None:
+            AnalyzerAPI._fetcher = MultiSourceFetcher()
+        return AnalyzerAPI._fetcher
 
     @staticmethod
     def health() -> bool:
@@ -107,38 +116,98 @@ class AnalyzerAPI:
     @staticmethod
     def get_live_news(team_name: str, limit: int = 5) -> List[Dict]:
         """获取球队实时新闻"""
-        try:
-            url = f"{ANALYZER_API_URL}/api/v1/live/news"
-            response = requests.get(url, params={"team": team_name, "limit": limit}, timeout=5)
-            response.raise_for_status()
-            return response.json().get("articles", [])
-        except Exception as e:
-            print(f"Warning: Live news fetch failed: {e}")
-            return []
+        res = AnalyzerAPI.get_live_news_protocol(team_name=team_name, limit=limit)
+        if res.get("ok"):
+            return res.get("data", {}).get("articles", [])
+        return []
 
     @staticmethod
     def get_live_injuries(team_name: str) -> List[Dict]:
         """获取球队实时伤停情报"""
+        res = AnalyzerAPI.get_live_injuries_protocol(team_name=team_name)
+        if res.get("ok"):
+            return res.get("data", {}).get("injuries", [])
+        return []
+
+    @staticmethod
+    def get_live_fixtures() -> List[Dict]:
+        """获取今日赛事列表"""
+        res = AnalyzerAPI.get_live_fixtures_protocol()
+        if res.get("ok"):
+            return res.get("data", {}).get("fixtures", [])
+        return []
+
+    @staticmethod
+    def get_live_fixtures_protocol() -> Dict[str, Any]:
         try:
-            url = f"{ANALYZER_API_URL}/api/v1/live/injuries"
-            response = requests.get(url, params={"team": team_name}, timeout=5)
+            url = f"{ANALYZER_API_URL}/api/v1/live/fixtures"
+            response = requests.get(url, timeout=5)
             response.raise_for_status()
-            return response.json().get("injuries", [])
-        except Exception as e:
-            print(f"Warning: Live injuries fetch failed: {e}")
-            return []
+            return {
+                "ok": True,
+                "data": response.json(),
+                "error": None,
+                "meta": {"mock": False, "source": "analyzer_api_http", "confidence": 0.7, "stale": False},
+            }
+        except Exception:
+            fetcher = AnalyzerAPI._get_fetcher()
+            return fetcher.fetch_fixtures_sync()
 
     @staticmethod
     def get_live_odds(home_team: str, away_team: str) -> Dict:
         """获取实时盘口与水位变动数据"""
+        res = AnalyzerAPI.get_live_odds_protocol(home_team=home_team, away_team=away_team)
+        if res.get("ok"):
+            return res.get("data") or {}
+        return {}
+
+    @staticmethod
+    def get_live_odds_protocol(home_team: str, away_team: str) -> Dict[str, Any]:
         try:
             url = f"{ANALYZER_API_URL}/api/v1/live/odds"
             response = requests.get(url, params={"home": home_team, "away": away_team}, timeout=5)
             response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            print(f"Warning: Live odds fetch failed: {e}")
-            return {}
+            return {
+                "ok": True,
+                "data": response.json(),
+                "error": None,
+                "meta": {"mock": False, "source": "analyzer_api_http", "confidence": 0.7, "stale": False},
+            }
+        except Exception:
+            fetcher = AnalyzerAPI._get_fetcher()
+            return fetcher.fetch_odds_sync(home_team=home_team, away_team=away_team)
+
+    @staticmethod
+    def get_live_injuries_protocol(team_name: str) -> Dict[str, Any]:
+        try:
+            url = f"{ANALYZER_API_URL}/api/v1/live/injuries"
+            response = requests.get(url, params={"team": team_name}, timeout=5)
+            response.raise_for_status()
+            return {
+                "ok": True,
+                "data": response.json().get("injuries", []),
+                "error": None,
+                "meta": {"mock": False, "source": "analyzer_api_http", "confidence": 0.7, "stale": False},
+            }
+        except Exception:
+            fetcher = AnalyzerAPI._get_fetcher()
+            return fetcher.fetch_injuries_sync(team_name=team_name)
+
+    @staticmethod
+    def get_live_news_protocol(team_name: str, limit: int = 5) -> Dict[str, Any]:
+        try:
+            url = f"{ANALYZER_API_URL}/api/v1/live/news"
+            response = requests.get(url, params={"team": team_name, "limit": limit}, timeout=5)
+            response.raise_for_status()
+            return {
+                "ok": True,
+                "data": response.json().get("articles", []),
+                "error": None,
+                "meta": {"mock": False, "source": "analyzer_api_http", "confidence": 0.7, "stale": False},
+            }
+        except Exception:
+            fetcher = AnalyzerAPI._get_fetcher()
+            return fetcher.fetch_news_sync(team_name=team_name, limit=limit)
 
 # 测试代码
 if __name__ == "__main__":
