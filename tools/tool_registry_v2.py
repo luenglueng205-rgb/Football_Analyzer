@@ -103,6 +103,11 @@ class PoissonArgs(BaseModel):
     home_xg: float
     away_xg: float
 
+class CalculateAllMarketsArgs(BaseModel):
+    home_xg: float = Field(..., description="主队预期进球数")
+    away_xg: float = Field(..., description="客队预期进球数")
+    handicap: float = Field(default=-1.0, description="让球数(例如主让一球为 -1.0，客让一球为 1.0)")
+
 class SmartMoneyArgs(BaseModel):
     opening_odds: Dict[str, float]
     live_odds: Dict[str, float]
@@ -155,6 +160,7 @@ _TOOLS = [
     ToolDefinition("analyze_asian_handicap_divergence", "分析欧亚转换偏差", AsianHandicapArgs, TOOL_MAPPING["analyze_asian_handicap_divergence"]),
     ToolDefinition("scrape_beidan_sp", "抓取北单SP", ScrapeBeidanArgs, TOOL_MAPPING["scrape_beidan_sp"]),
     ToolDefinition("calculate_poisson_probabilities", "计算泊松分布", PoissonArgs, TOOL_MAPPING["calculate_poisson_probabilities"]),
+    ToolDefinition("calculate_all_markets", "计算竞彩/北单所有衍生玩法(胜平负、让球、总进球、半全场、上下单双)的理论概率", CalculateAllMarketsArgs, TOOL_MAPPING["calculate_all_markets"]),
     ToolDefinition("detect_smart_money", "检测聪明资金", SmartMoneyArgs, TOOL_MAPPING["detect_smart_money"]),
     ToolDefinition("capture_and_analyze_trend", "截图分析走势", CaptureTrendArgs, TOOL_MAPPING["capture_and_analyze_trend"]),
     ToolDefinition("run_monte_carlo_simulation", "运行蒙特卡洛模拟", MonteCarloArgs, TOOL_MAPPING["run_monte_carlo_simulation"]),

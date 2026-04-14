@@ -40,7 +40,12 @@ class BaseAgent:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"
                 
-            response = await self.client.chat.completions.create(**kwargs)
+            try:
+                response = await self.client.chat.completions.create(**kwargs)
+            except Exception as e:
+                print(f"[🤖 {self.name}] LLM API 错误: {e}")
+                return {"report": f"Agent {self.name} encountered a critical LLM API error: {e}", "data": gathered_data}
+                
             msg = response.choices[0].message
             messages.append(msg)
             
@@ -76,8 +81,8 @@ class ScoutAgent(BaseAgent):
 
 class FundamentalQuantAgent(BaseAgent):
     def __init__(self):
-        prompt = "你是基本面原教旨主义者(Fundamentalist)。你坚信足球是实力的体现，无视盘口诱导。你主要依靠泊松分布、蒙特卡洛模拟和伤停情报来计算纯粹的胜负概率。输出你认为最稳妥的选项和数学期望。"
-        tools = ["calculate_poisson_probabilities", "run_monte_carlo_simulation", "get_team_stats"]
+        prompt = "你是基本面原教旨主义者(Fundamentalist)。你坚信足球是实力的体现，无视盘口诱导。你主要依靠泊松分布、全景概率引擎、蒙特卡洛模拟和伤停情报来计算纯粹的胜负及各类衍生玩法概率。输出你认为最稳妥的选项和数学期望。"
+        tools = ["calculate_poisson_probabilities", "calculate_all_markets", "run_monte_carlo_simulation", "get_team_stats"]
         super().__init__("Fundamentalist", prompt, tools)
 
 class ContrarianQuantAgent(BaseAgent):
@@ -94,13 +99,12 @@ class SmartMoneyQuantAgent(BaseAgent):
 
 class JudgeAgent(BaseAgent):
     def __init__(self):
-        prompt = """你是华尔街数字博彩基金的风控法官(Judge)。你的任务是主持多空辩论。
-你将收到一份球探情报，以及来自【基本面派】、【反买狗庄派】和【聪明资金派】的三份相互冲突的投资建议。
-你需要：
-1. 找出他们逻辑中的漏洞并进行最终裁决。
-2. 必须调用 check_bankroll 检查资金。
-3. 严格使用凯利准则计算仓位。如果决定下注，调用 execute_bet 和 save_team_insight，并调用通知工具(send_webhook_notification, generate_qr_code)。
-4. 如果三方分歧过大或 EV < 0，坚决执行 Skip (放弃)。
-你拥有唯一的开火权。"""
+        prompt = """你是中国体育彩票的顶级策略专家与风控法官。
+你的任务是阅读三大宽客的报告，并结合【体彩领域知识库】做出最聪明的决策。
+你的绝对原则：
+1. 【打破胜平负偏见】：绝对不要只盯着胜平负！如果发现某场比赛胜平负 EV 过低（蚊子肉），你必须去审视宽客提供的“全景衍生概率”（如总进球、半全场、上下单双），挑选出性价比最高的一个或两个具体玩法！
+2. 【严格遵守规则】：如果是竞彩，注意同场互斥；如果是北单，注意让球小数。
+3. 如果所有玩法都没有价值，或者宽客分歧巨大，坚决执行 Skip (放弃)。
+你拥有唯一的开火权，并在最终报告中明确写出你推荐的【具体玩法】和【赔率/概率理由】。"""
         tools = ["check_bankroll", "execute_bet", "save_team_insight", "send_webhook_notification", "generate_qr_code"]
         super().__init__("Judge", prompt, tools)

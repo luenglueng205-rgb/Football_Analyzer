@@ -17,6 +17,7 @@ from tools.parlay_filter_matrix import ParlayFilterMatrix
 from tools.qrcode_ticket_generator import generate_ticket_qr
 from tools.notification_dispatcher import dispatch_notification
 from tools.memory_manager import MemoryManager
+from skills.lottery_math_engine import LotteryMathEngine
 import os
 
 _ledger = BettingLedger()
@@ -194,6 +195,12 @@ def calculate_poisson_probabilities(home_xg: float, away_xg: float) -> Dict[str,
                 
     return {"home_win": p_home, "draw": p_draw, "away_win": p_away}
 
+@ensure_protocol(mock=False, source="math_engine")
+def calculate_all_markets(home_xg: float, away_xg: float, handicap: float = -1.0) -> dict:
+    """计算竞彩/北单所有衍生玩法(胜平负、让球、总进球、半全场、上下单双)的理论概率。"""
+    engine = LotteryMathEngine()
+    return engine.calculate_all_markets(home_xg, away_xg, handicap)
+
 @ensure_protocol(mock=False, source="smart_money")
 def detect_smart_money(opening_odds: Dict[str, float], live_odds: Dict[str, float]) -> Dict[str, Any]:
     """
@@ -320,6 +327,22 @@ AVAILABLE_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {"home_xg": {"type": "number"}, "away_xg": {"type": "number"}},
+                "required": ["home_xg", "away_xg"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_all_markets",
+            "description": "计算竞彩/北单所有衍生玩法(胜平负、让球、总进球、半全场、上下单双)的理论概率。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "home_xg": {"type": "number", "description": "主队预期进球数"},
+                    "away_xg": {"type": "number", "description": "客队预期进球数"},
+                    "handicap": {"type": "number", "description": "让球数(例如主让一球为 -1.0，客让一球为 1.0)"}
+                },
                 "required": ["home_xg", "away_xg"]
             }
         }
@@ -474,6 +497,7 @@ TOOL_MAPPING = {
     "search_news": search_news,
     "scrape_beidan_sp": scrape_beidan_sp,
     "calculate_poisson_probabilities": calculate_poisson_probabilities,
+    "calculate_all_markets": calculate_all_markets,
     "detect_smart_money": detect_smart_money,
     "capture_and_analyze_trend": capture_and_analyze_trend,
     "run_monte_carlo_simulation": run_monte_carlo_simulation,

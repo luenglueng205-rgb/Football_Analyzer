@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Dict, Any
 from agents.syndicate_agents import ScoutAgent, FundamentalQuantAgent, ContrarianQuantAgent, SmartMoneyQuantAgent, JudgeAgent
 
@@ -9,6 +10,13 @@ class SyndicateOS:
         self.contrarian = ContrarianQuantAgent()
         self.smart_money = SmartMoneyQuantAgent()
         self.judge = JudgeAgent()
+        
+        rulebook_path = "docs/lottery_rulebook.md"
+        if os.path.exists(rulebook_path):
+            with open(rulebook_path, "r", encoding="utf-8") as f:
+                self.lottery_rulebook = f.read()
+        else:
+            self.lottery_rulebook = "Rulebook not found."
 
     async def process_match(self, home_team: str, away_team: str, lottery_desc: str) -> Dict[str, Any]:
         print(f"\n==================================================")
@@ -35,7 +43,11 @@ class SyndicateOS:
         
         # 3. Judge 终极裁决
         judge_task = f"""
-目标赛事：{home_team} vs {away_team}。玩法：{lottery_desc}。
+目标赛事：{home_team} vs {away_team}。当前彩种与玩法大类：{lottery_desc}。
+
+【必须遵守的体彩领域知识库 (Rulebook)】
+{self.lottery_rulebook}
+
 请主持以下辩论并做出最终的真金白银投资决策：
 
 【Scout 客观情报】
