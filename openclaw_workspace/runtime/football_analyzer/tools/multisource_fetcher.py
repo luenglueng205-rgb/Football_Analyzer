@@ -1,5 +1,6 @@
 import asyncio
 import json
+import requests
 from tools.entity_resolver import EntityResolver
 from tools.snapshot_store import SnapshotStore
 from tools.agent_browser import AgentBrowser
@@ -122,3 +123,53 @@ class MultiSourceFetcher:
             "error": {"code": "NOT_FOUND", "message": "failed to fetch news from dongqiudi"},
             "meta": {"mock": False, "source": "multisource", "confidence": 0.0, "stale": True},
         }
+
+    def fetch_weather_sync(self, city: str, api_key: str) -> dict:
+        """Fetch real weather data using OpenWeatherMap API"""
+        # 如果没有传入 city，设置一个默认的足球城市用于测试，实际应由外部传入比赛所在城市
+        if not city:
+            city = "London"
+            
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+        
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                
+                # 转换 OpenWeatherMap condition 匹配 EnvironmentAnalyzer 的认知
+                raw_condition = data["weather"][0]["main"].lower()
+                condition_map = {
+                    "rain": "heavy_rain",
+                    "drizzle": "heavy_rain",
+                    "thunderstorm": "heavy_rain",
+                    "snow": "snow",
+                    "clear": "clear",
+                    "clouds": "clear", # 多云对比赛影响不大，视为 clear
+                    "extreme": "extreme_heat" # 简化处理
+                }
+                mapped_condition = condition_map.get(raw_condition, "clear")
+                
+                return {
+                    "ok": True,
+                    "data": {
+                        "temperature": data["main"]["temp"],
+                        "condition": mapped_condition,
+                        "wind": "strong" if data["wind"]["speed"] > 8 else "light",
+                    },
+                    "error": None,
+                    "meta": {"mock": False, "source": "openweathermap", "confidence": 1.0, "stale": False}
+                }
+            return {
+                "ok": False,
+                "data": None,
+                "error": {"code": "API_ERROR", "message": f"Status: {response.status_code}"},
+                "meta": {"mock": False, "source": "multisource", "confidence": 0.0, "stale": True}
+            }
+        except Exception as e:
+            return {
+                "ok": False,
+                "data": None,
+                "error": {"code": "REQUEST_FAILED", "message": str(e)},
+                "meta": {"mock": False, "source": "multisource", "confidence": 0.0, "stale": True}
+            }

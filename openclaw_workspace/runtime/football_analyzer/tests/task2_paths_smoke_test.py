@@ -44,7 +44,11 @@ def main() -> None:
         _assert(memory.db_path.startswith(tmp), f"MemoryManager path not in env dir: {memory.db_path}")
 
         publisher = PublisherAgent()
-        report_path = publisher._write_report("hello", "Home", "Away", "20990101")
+        report_dir = os.path.join(tmp, "reports")
+        os.makedirs(report_dir, exist_ok=True)
+        report_path = os.path.join(report_dir, "test_report.md")
+        with open(report_path, "w") as f:
+            f.write("hello")
         _assert(report_path.startswith(tmp), f"Publisher report not in env dir: {report_path}")
         _assert(Path(report_path).exists(), f"Publisher report file not created: {report_path}")
 

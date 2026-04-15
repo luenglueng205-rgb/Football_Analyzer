@@ -1,31 +1,30 @@
 {
-  "name": "football-quant-tools",
-  "version": "1.0.0",
-  "description": "2026 OpenClaw Adapter for Elite Football Quantitative Analysis",
+  "name": "digital-betting-syndicate",
+  "version": "2.0.0",
+  "description": "An AI-Native Football Analysis & Betting Syndicate OS.",
   "workspace_type": "native_agent",
+  "sandbox": {
+    "mode": "agent",
+    "allow_network": true
+  },
   "agents": {
     "main": {
-      "role": "Quant Architect",
-      "description": "主理量化分析逻辑，负责调用社区技能获取情报，并调用本地工具进行数学运算。",
-      "system_prompt_file": "docs/LOTTERY_RULES.md",
+      "role": "Digital Betting Syndicate Orchestrator",
+      "description": "最高指挥官。负责统筹赛前情报、调动底层数学模型计算预期进球，并综合基本面与风控发出最终投注指令。",
+      "system_prompt_file": "runtime/football_analyzer/docs/LOTTERY_RULES.md",
       "tools": [
-        "detect_smart_money",
-        "calculate_bayesian_xg",
-        "calculate_poisson_probabilities",
-        "calculate_kelly_and_ev",
-        "@clawhub/global-weather-api",
-        "@workbuddy/enterprise-news-sentiment"
+        "local_mcp.detect_smart_money",
+        "local_mcp.calculate_adjusted_xg",
+        "local_mcp.run_monte_carlo",
+        "local_mcp.query_historical_odds",
+        "local_mcp.fetch_weather_impact"
       ]
     }
   },
   "mcpServers": {
-    "football_quant": {
+    "local_mcp": {
       "command": "python3",
       "args": ["src/mcp_server.py"]
     }
-  },
-  "sandbox": {
-    "mode": "agent",
-    "network_access": true
   }
 }

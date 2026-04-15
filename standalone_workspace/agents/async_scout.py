@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from agents.async_base import AsyncBaseAgent
 from tools.mcp_beidan_scraper import MCPBeidanScraper
+from tools.memory_manager import MemoryManager
 
 try:
     from tools.analyzer_api import AnalyzerAPI
@@ -80,6 +81,22 @@ class AsyncScoutAgent(AsyncBaseAgent):
         beidan_scraper = MCPBeidanScraper()
         beidan_data = await beidan_scraper.extract_live_sp(home_team, away_team)
 
+        # 盘感检索
+        memory_manager = MemoryManager()
+        home_odds = float(match_info.get("home_odds", 2.10))
+        draw_odds = float(match_info.get("draw_odds", 3.50))
+        away_odds = float(match_info.get("away_odds", 3.20))
+        
+        historical_sense = memory_manager.query_historical_odds(league, home_odds, draw_odds, away_odds)
+        historical_summary = ""
+        if historical_sense.get("ok") and historical_sense.get("data"):
+            docs = historical_sense["data"]
+            historical_summary = f"发现 {len(docs)} 场历史相似赔率比赛。近期代表性赛果：\n" + "\n".join(docs[:5])
+        else:
+            historical_summary = "历史盘感样本不足。"
+
+        weather_data = self._get_weather_info(match_info)
+
         data = {
             "status": "success",
             "data": {
@@ -94,8 +111,10 @@ class AsyncScoutAgent(AsyncBaseAgent):
                 "match_info": {
                     "league": league,
                     "league_stats": league_stats,
+                    "weather": weather_data,
                 },
-                "beidan_info": beidan_data
+                "beidan_info": beidan_data,
+                "historical_sense": historical_summary
             },
             "confidence": 0.85 if league_stats else 0.70,
             "data_source": "live_and_historical"
@@ -103,7 +122,7 @@ class AsyncScoutAgent(AsyncBaseAgent):
 
         # LLM 分析报告 (异步执行)
         if API_AVAILABLE:
-            system_prompt = "你是一名顶级的足彩情报专家。请阅读 JSON 数据，为用户撰写一份专业的赛前基本面情报，特别是结合北单数据。"
+            system_prompt = "你是一名顶级的足彩情报专家。请阅读 JSON 数据，特别是 `historical_sense` 字段中的历史盘感数据，为用户撰写一份专业的赛前基本面情报，指出历史相似赔率下最容易打出的体彩玩法标签。"
             data_context = json.dumps(data["data"], ensure_ascii=False)
             try:
                 ai_report = await asyncio.to_thread(LLMService.generate_report, system_prompt, data_context)
@@ -134,6 +153,32 @@ class AsyncScoutAgent(AsyncBaseAgent):
             "sp_loss": 2.21,
             "source": "500.com_web_scraper"
         }
+
+    def _get_weather_info(self, match_info: dict = None) -> dict:
+        """
+        接入真实的 OpenWeatherMap API。
+        优先从 match_info 提取主队所在城市，提取失败默认用伦敦。
+        """
+        api_key = "72614075c57839dcdab31d0edbb2df26" # 用户提供的真实 Key
+        
+        # 尝试从 match_info 中提取城市名称，如果没有则默认伦敦
+        city = "London"
+        if match_info and match_info.get("home_team"):
+            city = match_info.get("home_team").split()[0] # 极其简化的球队到城市的映射，真实环境需查字典
+            
+        try:
+            # 这里需要用到 multisource_fetcher
+            from tools.multisource_fetcher import MultiSourceFetcher
+            fetcher = MultiSourceFetcher()
+            result = fetcher.fetch_weather_sync(city, api_key)
+            
+            if result.get("ok") and result.get("data"):
+                return result["data"]
+        except Exception as e:
+            logger.warning(f"获取真实天气异常，降级使用 Mock: {e}")
+            
+        # Fallback 降级：如果 API 调用失败或断网，返回默认的好天气，不干扰 xG
+        return {"temperature": 15, "condition": "clear", "wind": "light"}
 
     def _format_home_record(self, team_stats: Dict) -> Dict:
         if not team_stats or team_stats.get("sample_size", 0) == 0:

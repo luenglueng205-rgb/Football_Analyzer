@@ -1,21 +1,20 @@
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-try:
-    from tools.paths import data_dir
-except ModuleNotFoundError:
-    import sys
-    from pathlib import Path
+from tools.paths import data_dir
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tools.paths import data_dir
+logger = logging.getLogger(__name__)
 
 
 class SnapshotStore:
-    def __init__(self, db_path: Optional[str] = None):
+    """
+    负责存储比赛开赛前 30 分钟的三方 Quant 辩论快照与盘口截图。
+    """
+    def __init__(self, db_path=None):
         self.db_path = db_path or os.path.join(data_dir(), "snapshots.db")
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         self._init_db()
@@ -149,3 +148,4 @@ class SnapshotStore:
             "error": None,
             "meta": {"mock": False, "source": "snapshot_store"},
         }
+

@@ -1,17 +1,16 @@
 import os
 import sqlite3
 import datetime
+import json
+import logging
+from tools.paths import data_dir
 
-try:
-    from tools.paths import data_dir
-except ModuleNotFoundError:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tools.paths import data_dir
+logger = logging.getLogger(__name__)
 
 class BettingLedger:
+    """
+    负责记录所有投注历史、虚拟 PnL，供回测和 AutoTuner 反思使用。
+    """
     def __init__(self, db_path=None):
         self.db_path = db_path or os.path.join(data_dir(), "ledger.db")
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)

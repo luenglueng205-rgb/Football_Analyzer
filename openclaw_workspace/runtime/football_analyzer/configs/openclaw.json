@@ -1,0 +1,165 @@
+{
+  "$schema": "https://openclaw.ai/schema.json",
+  "name": "football-lottery-analyst-pro",
+  "version": "2026.04.11",
+  "description": "中国体育彩票足球智能分析原生多智能体系统 (Native Multi-Agent Workspace)",
+  "homepage": "https://github.com/luenglueng205-rgb/Football-AnalystAgent",
+
+  "agents": {
+    "defaults": {
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "maxTokens": 8192,
+      "temperature": 0.4,
+      "subagents": {
+        "maxConcurrent": 8,
+        "maxSpawnDepth": 2,
+        "maxChildrenPerAgent": 5,
+        "runTimeoutSeconds": 600,
+        "thinking": "medium",
+        "cleanup": "delete"
+      }
+    },
+
+    "list": [
+      {
+        "id": "main",
+        "name": "足彩分析总控 (Main)",
+        "description": "系统对外的统一交互入口，负责接待用户并转交任务给调度中心",
+        "default": true,
+        "workspace": "agents/main/workspace",
+        "agentDir": "agents/main",
+        "model": "claude-3-5-sonnet-20241022",
+        "systemPrompt": "你是足球彩票分析系统的首席接待官。当用户提出分析需求时，你必须将核心分析任务完整委托给 'orchestrator' 调度中心，并向用户报告各个子智能体的工作进度与最终结论。",
+        "subagents": {
+          "allowAgents": ["orchestrator"]
+        },
+        "sandbox": {
+          "mode": "off"
+        }
+      },
+      {
+        "id": "orchestrator",
+        "name": "调度中心 (Orchestrator)",
+        "description": "多智能体任务拆解与协调中心，负责分配工作给专业分析师",
+        "workspace": "agents/orchestrator/workspace",
+        "agentDir": "agents/orchestrator",
+        "model": "claude-3-5-sonnet-20241022",
+        "systemPrompt": "你是系统的基金经理和调度中心。你需要将赛事分析任务拆解：让 scout 搜集情报，让 analyst 处理赔率和泊松计算，让 strategist 生成组合，最后强制交给 risk-manager 审核。必须确保各个子 Agent 的结论汇拢后才能输出。",
+        "subagents": {
+          "allowAgents": ["scout", "analyst", "strategist", "risk-manager"]
+        },
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "scout",
+        "name": "情报搜集员 (Scout)",
+        "description": "搜集球队新闻、伤病名单，分析天气与裁判等非结构化环境因素",
+        "workspace": "agents/scout/workspace",
+        "agentDir": "agents/scout",
+        "model": "claude-3-5-haiku-20241022",
+        "temperature": 0.2,
+        "skills": ["football-quant-tools"],
+        "tools": ["get_team_news_and_injuries", "get_match_environment_impact", "get_team_baseline_stats"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "analyst",
+        "name": "赔率与量化分析师 (Analyst)",
+        "description": "计算泊松分布比分矩阵、蒙特卡洛时间轴推演、量化球员 xG 衰减",
+        "workspace": "agents/analyst/workspace",
+        "agentDir": "agents/analyst",
+        "model": "claude-3-5-sonnet-20241022",
+        "temperature": 0.1,
+        "skills": ["football-quant-tools"],
+        "tools": ["calculate_poisson_probability", "run_monte_carlo_ht_ft", "adjust_team_xg_by_players", "get_live_odds_and_water_changes"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "strategist",
+        "name": "策略制定师 (Strategist)",
+        "description": "结合赔率计算 EV (期望值)，生成 M串N 混合过关或单关方案",
+        "workspace": "agents/strategist/workspace",
+        "agentDir": "agents/strategist",
+        "model": "claude-3-5-sonnet-20241022",
+        "temperature": 0.3,
+        "skills": ["football-quant-tools"],
+        "tools": ["evaluate_betting_value", "calculate_jingcai_parlay_prize", "calculate_traditional_rx9_cost"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      },
+      {
+        "id": "risk-manager",
+        "name": "首席风控官 (Risk Manager)",
+        "description": "监控聪明资金异动，执行凯利准则风控，拥有方案的最终一票否决权",
+        "workspace": "agents/risk-manager/workspace",
+        "agentDir": "agents/risk-manager",
+        "model": "claude-3-5-sonnet-20241022",
+        "temperature": 0.0,
+        "skills": ["football-quant-tools"],
+        "tools": ["check_smart_money_alerts", "evaluate_betting_value"],
+        "sandbox": {
+          "mode": "agent"
+        }
+      }
+    ],
+
+    "bindings": [
+      {
+        "agentId": "main",
+        "match": {
+          "channel": "console",
+          "accountId": "default"
+        }
+      }
+    ]
+  },
+
+  "skills": {
+    "entries": {
+      "football-quant-tools": {
+        "enabled": true,
+        "workspace": ".",
+        "schema": "football_quant_tools.json"
+      }
+    }
+  },
+
+  "memory": {
+    "episodic": {
+      "enabled": true,
+      "storage": "data/memory/episodic_memory.json"
+    },
+    "semantic": {
+      "enabled": true,
+      "storage": "data/memory/reflections.json"
+    }
+  },
+
+  "scheduler": {
+    "enabled": true,
+    "tasks": [
+      {
+        "id": "smart-money-daemon",
+        "interval": "5m",
+        "handler": "market_monitor.py",
+        "agent": "risk-manager",
+        "description": "每5分钟主动监控聪明资金异动"
+      },
+      {
+        "id": "auto-tuning-daemon",
+        "cron": "0 3 * * *",
+        "handler": "auto_tuner.py",
+        "agent": "orchestrator",
+        "description": "每天凌晨3点自动执行参数寻优与自我进化"
+      }
+    ]
+  }
+}

@@ -17,7 +17,19 @@ class LotteryMathEngine:
         return matrix
 
     def calculate_all_markets(self, home_xg: float, away_xg: float, handicap: float = -1.0) -> Dict[str, Any]:
-        matrix = self._build_score_matrix(home_xg, away_xg)
+        # 1. 破坏性测试修复：防范负数 xG 导致的 NaN 崩溃
+        if home_xg < 0 or away_xg < 0:
+            raise ValueError("xG (预期进球) 必须大于等于 0")
+            
+        # 2. 破坏性测试修复：当遇到极大 xG 时，动态扩展泊松矩阵，防止截断导致概率丢失
+        # 正常比赛 7 个球够了，如果是 20.0 xG，矩阵需要扩大到至少 45 才能收敛
+        dynamic_max_goals = max(self.max_goals, int(max(home_xg, away_xg) * 2 + 5))
+        
+        # 构建泊松概率矩阵
+        matrix = [[0.0 for _ in range(dynamic_max_goals)] for _ in range(dynamic_max_goals)]
+        for h in range(dynamic_max_goals):
+            for a in range(dynamic_max_goals):
+                matrix[h][a] = poisson.pmf(h, home_xg) * poisson.pmf(a, away_xg)
         
         # 1. 胜平负 (W/D/L)
         w, d, l = 0.0, 0.0, 0.0
@@ -29,8 +41,8 @@ class LotteryMathEngine:
         # 4. 上下单双 (BD: Over/Under Odd/Even) - 假设 3 球为上盘界限
         shang_dan, shang_shuang, xia_dan, xia_shuang = 0.0, 0.0, 0.0, 0.0
         
-        for h in range(self.max_goals):
-            for a in range(self.max_goals):
+        for h in range(dynamic_max_goals):
+            for a in range(dynamic_max_goals):
                 prob = matrix[h][a]
                 
                 # W/D/L
@@ -59,9 +71,14 @@ class LotteryMathEngine:
 
         # 5. 简单的半全场预估 (Half-Time/Full-Time) - 简化逻辑：半场 xG 大致为全场一半
         ht_w, ht_d, ht_l = 0.0, 0.0, 0.0
-        ht_matrix = self._build_score_matrix(home_xg * 0.45, away_xg * 0.45) # 假设半场进球偏少
-        for hh in range(self.max_goals):
-            for ha in range(self.max_goals):
+        ht_dynamic_max_goals = max(self.max_goals, int(max(home_xg * 0.45, away_xg * 0.45) * 2 + 5))
+        ht_matrix = [[0.0 for _ in range(ht_dynamic_max_goals)] for _ in range(ht_dynamic_max_goals)]
+        for h in range(ht_dynamic_max_goals):
+            for a in range(ht_dynamic_max_goals):
+                ht_matrix[h][a] = poisson.pmf(h, home_xg * 0.45) * poisson.pmf(a, away_xg * 0.45)
+                
+        for hh in range(ht_dynamic_max_goals):
+            for ha in range(ht_dynamic_max_goals):
                 p = ht_matrix[hh][ha]
                 if hh > ha: ht_w += p
                 elif hh == ha: ht_d += p

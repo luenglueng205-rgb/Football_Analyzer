@@ -1,81 +1,44 @@
-import math
-from typing import Dict, Any, Tuple
+import os
+import json
+from typing import List, Dict, Any
 
 class SmartMoneyTracker:
     """
-    2026 版聪明资金追踪器 (Smart Money Tracker)
-    基于泊松分布和赔率偏移，剥离庄家抽水 (Juice/Vig)，计算真实的资金砸盘方向。
+    监控赔率时间序列的加速度，发现“断崖式”剧烈震荡拉响风控警报。
     """
-    
-    @staticmethod
-    def remove_juice(home: float, draw: float, away: float) -> Tuple[float, float, float]:
-        """
-        剥离庄家抽水，还原真实的隐含概率 (Implied True Probability)
-        """
-        if home <= 0 or draw <= 0 or away <= 0:
-            return 0.0, 0.0, 0.0
-            
-        implied_home = 1.0 / home
-        implied_draw = 1.0 / draw
-        implied_away = 1.0 / away
-        
-        total_implied = implied_home + implied_draw + implied_away
-        
-        # 按比例剥离抽水
-        true_home = implied_home / total_implied
-        true_draw = implied_draw / total_implied
-        true_away = implied_away / total_implied
-        
-        return true_home, true_draw, true_away
+    def __init__(self, default_drop_threshold: float = 0.25):
+        # 赔率跌幅超过 default_drop_threshold 视为异常资金介入
+        self.hyperparams_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "configs", "hyperparams.json")
+        self.drop_threshold = self._load_dynamic_threshold(default_drop_threshold)
 
-    @classmethod
-    def detect_sharp_money(cls, opening_odds: Dict[str, float], live_odds: Dict[str, float], threshold: float = 0.04) -> Dict[str, Any]:
-        """
-        对比初盘(Opening)和即时盘(Live)，检测聪明资金(Sharp Money)的介入方向
-        threshold: 真实概率偏移超过 4% 视为异常资金介入
-        """
-        oh, od, oa = opening_odds.get('home', 0), opening_odds.get('draw', 0), opening_odds.get('away', 0)
-        lh, ld, la = live_odds.get('home', 0), live_odds.get('draw', 0), live_odds.get('away', 0)
-        
-        if not all([oh, od, oa, lh, ld, la]):
-            return {"has_sharp_money": False, "reason": "赔率数据不全"}
+    def _load_dynamic_threshold(self, default_val):
+        try:
+            if os.path.exists(self.hyperparams_path):
+                with open(self.hyperparams_path, "r", encoding="utf-8") as f:
+                    params = json.load(f)
+                    return params.get("smart_money_tracker", {}).get("drop_threshold", default_val)
+        except Exception:
+            pass
+        return default_val
+
+    def detect_anomaly(self, odds_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if len(odds_history) < 2:
+            return {"is_anomaly": False, "reason": "数据不足"}
             
-        # 计算初盘真实概率
-        true_open_h, true_open_d, true_open_a = cls.remove_juice(oh, od, oa)
-        # 计算即时盘真实概率
-        true_live_h, true_live_d, true_live_a = cls.remove_juice(lh, ld, la)
+        initial = odds_history[0]
+        latest = odds_history[-1]
         
-        # 计算偏移量 (Delta)
-        delta_h = true_live_h - true_open_h
-        delta_d = true_live_d - true_open_d
-        delta_a = true_live_a - true_open_a
+        home_drop = (initial["home"] - latest["home"]) / initial["home"]
+        away_drop = (initial["away"] - latest["away"]) / initial["away"]
+        draw_drop = (initial["draw"] - latest["draw"]) / initial["draw"]
         
-        sharp_direction = None
-        max_delta = 0.0
-        
-        if delta_h > threshold:
-            sharp_direction = "home"
-            max_delta = delta_h
-        elif delta_a > threshold:
-            sharp_direction = "away"
-            max_delta = delta_a
-        elif delta_d > threshold:
-            sharp_direction = "draw"
-            max_delta = delta_d
+        if home_drop > self.drop_threshold:
+            return {"is_anomaly": True, "trigger_side": "home", "reason": f"主胜赔率暴跌 {home_drop*100:.1f}%，疑似聪明资金砸盘主队"}
             
-        if sharp_direction:
-            severity = "CRITICAL" if max_delta >= 0.07 else "WARNING"
-            return {
-                "has_sharp_money": True,
-                "direction": sharp_direction,
-                "delta_probability": max_delta,
-                "severity": severity,
-                "report": f"[{severity}] 聪明资金异动！{sharp_direction}方向真实胜率被资金砸高了 {max_delta*100:.1f}%！庄家在疯狂降水防范赔付。"
-            }
+        if away_drop > self.drop_threshold:
+            return {"is_anomaly": True, "trigger_side": "away", "reason": f"客胜赔率暴跌 {away_drop*100:.1f}%，疑似聪明资金砸盘客队"}
             
-        return {
-            "has_sharp_money": False,
-            "delta_h": delta_h,
-            "delta_a": delta_a,
-            "report": "盘口平稳，未检测到主力资金介入。"
-        }
+        if draw_drop > self.drop_threshold:
+            return {"is_anomaly": True, "trigger_side": "draw", "reason": f"平局赔率暴跌 {draw_drop*100:.1f}%，疑似默契球防范"}
+            
+        return {"is_anomaly": False, "reason": "赔率波动正常"}

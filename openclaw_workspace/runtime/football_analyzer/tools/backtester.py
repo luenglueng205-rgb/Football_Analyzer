@@ -1,23 +1,13 @@
 import json
-import os
 import sqlite3
-from typing import Dict, Any, Optional
-
-try:
-    from tools.paths import data_dir
-except ModuleNotFoundError:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tools.paths import data_dir
+from typing import Dict, Any
 
 class SnapshotBacktester:
     """
     P3 回测验证引擎：读取本地的 SnapshotStore 快照进行回测验证。
     """
-    def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or os.path.join(data_dir(), "snapshots.db")
+    def __init__(self, db_path: str = "data/snapshots.db"):
+        self.db_path = db_path
 
     def get_all_matches(self):
         """获取所有已保存过快照的比赛列表"""

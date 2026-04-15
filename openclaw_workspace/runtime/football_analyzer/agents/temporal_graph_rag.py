@@ -6,15 +6,6 @@ from typing import List, Dict, Any
 # 在 2026 年，我们不建议单纯的字符串匹配，而是用 Embedding 计算余弦相似度。
 # 考虑到本地测试无 Key 降级，这里提供一个基于特征向量的轻量级相似度引擎 (Temporal Graph RAG 雏形)
 
-try:
-    from tools.paths import data_dir
-except ModuleNotFoundError:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tools.paths import data_dir
-
 class TemporalGraphRAG:
     """
     2026 版时序知识图谱与 RAG 引擎
@@ -23,7 +14,8 @@ class TemporalGraphRAG:
     """
     def __init__(self, db_path: str = None):
         if db_path is None:
-            self.db_path = os.path.join(data_dir(), "memory", "graph_rag.json")
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.db_path = os.path.join(base_dir, "data", "memory", "graph_rag.json")
         else:
             self.db_path = db_path
             

@@ -5,6 +5,8 @@ from typing import Dict, Any
 from openai import AsyncOpenAI
 from tools.parlay_rules_engine import ParlayRulesEngine
 from tools.lottery_router import LotteryRouter
+from tools.anomaly_detector import AnomalyDetector
+from tools.daily_reporter import DailyReporter
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,39 @@ class AgenticCore:
                         "required": ["lottery_type", "ticket_data"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "detect_bookmaker_anomaly",
+                    "description": "Detect classic bookmaker traps based on odds and odds movement.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "home_odds": {"type": "number"},
+                            "draw_odds": {"type": "number"},
+                            "away_odds": {"type": "number"},
+                            "odds_drop_ratio": {"type": "number"},
+                        },
+                        "required": ["home_odds", "draw_odds", "away_odds"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "generate_daily_report",
+                    "description": "Generate a Markdown daily report summarizing PnL and evolution reasons.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "date_str": {"type": "string"},
+                            "pnl": {"type": "number"},
+                            "evolution_reason": {"type": "string"},
+                        },
+                        "required": ["date_str", "pnl", "evolution_reason"],
+                    },
+                },
             }
         ]
 
@@ -92,6 +127,23 @@ class AgenticCore:
                         router = LotteryRouter()
                         result = router.route_and_validate(args["lottery_type"], args["ticket_data"])
                         logger.info(f"🔧 Tool Result: {result['message']}")
+                    elif func_name == "detect_bookmaker_anomaly":
+                        detector = AnomalyDetector()
+                        result = detector.detect_anomaly(
+                            home_odds=args["home_odds"],
+                            draw_odds=args["draw_odds"],
+                            away_odds=args["away_odds"],
+                            odds_drop_ratio=args.get("odds_drop_ratio", 0.0),
+                        )
+                        logger.info(f"🔧 Tool Result: {result}")
+                    elif func_name == "generate_daily_report":
+                        reporter = DailyReporter()
+                        result = reporter.generate_report(
+                            date_str=args["date_str"],
+                            pnl=args["pnl"],
+                            evolution_reason=args["evolution_reason"],
+                        )
+                        logger.info(f"🔧 Tool Result: {result}")
             else:
                 logger.info(f"🗣️ [AgenticCore] Decision: {message.content}")
                 

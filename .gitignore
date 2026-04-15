@@ -45,7 +45,38 @@ ehthumbs.db
 Thumbs.db
 
 global_macro_quant/
-data/chinese_mapped/
-data/raw/
+
+# Repo root local data/runtime artifacts (do not commit)
+/data/
+/COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json
+/FOOTBALL_DATA.zip
+/Football-AnalystAgent-v4.1-Native-MultiAgent-Backup.zip
+
+# Local databases / vector stores
+**/chroma_db/**
+!**/chroma_db/.gitkeep
+**/chroma.sqlite3
+**/ledger.db
+**/snapshots.db
+
+# Generated reports / QA outputs
+**/tests/qa_reports/**
+!**/tests/qa_reports/report.md
+!**/tests/qa_reports/.gitkeep
+
+# OpenClaw generated reports
+/openclaw_workspace/data/reports/*.md
+
+# Local runtime state (do not commit)
+**/workspace/**
+**/memory/**
+**/reports/**
+**/tickets/*.png
+**/tickets/*.jpg
+**/tickets/*.jpeg
+**/tickets/*.webp
+**/data/ingestion_checkpoint.json
+
+# Legacy ignores
 data/chinese_mapped/
 data/raw/

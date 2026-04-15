@@ -24,9 +24,6 @@ class BaseAgent:
         return [t for t in all_tools if t["function"]["name"] in self.allowed_tools]
 
     async def run(self, task_context: str) -> Dict[str, Any]:
-        if os.getenv("OPENCLAW_MOCK_LLM") == "1":
-            return {"report": f"[MOCK:{self.name}] {task_context[:200]}", "data": {}}
-
         print(f"\n[🤖 {self.name}] 正在执行任务...")
         messages = [
             {"role": "system", "content": self.role_prompt},

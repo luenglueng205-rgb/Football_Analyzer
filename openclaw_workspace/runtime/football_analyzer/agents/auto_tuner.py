@@ -2,15 +2,6 @@ import json
 import os
 import time
 
-try:
-    from tools.paths import data_dir
-except ModuleNotFoundError:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tools.paths import data_dir
-
 class AutoTuningEngine:
     """
     2026 版自动调参引擎 (Auto-Tuning Engine)
@@ -20,7 +11,7 @@ class AutoTuningEngine:
     def __init__(self):
         self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.hyperparams_path = os.path.join(self.base_dir, "configs", "hyperparams.json")
-        self.history_path = os.path.join(data_dir(), "memory", "episodic.json")
+        self.history_path = os.path.join(self.base_dir, "data", "memory", "episodic.json")
         
     def load_params(self):
         if os.path.exists(self.hyperparams_path):

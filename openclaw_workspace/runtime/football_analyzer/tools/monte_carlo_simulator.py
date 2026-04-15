@@ -63,6 +63,70 @@ class MatchTimelineSimulator:
                 
         return probabilities
 
+class TimeSliceMonteCarlo:
+    """
+    将 90 分钟切片，进行蒙特卡洛微观模拟，彻底颠覆静态双泊松，精准预测半全场。
+    """
+    def __init__(self, time_slices: int = 90):
+        self.time_slices = time_slices
+
+    def simulate_match(self, home_xg: float, away_xg: float, simulations: int = 10000) -> Dict[str, Any]:
+        # 每个时间片进球概率
+        home_prob_per_slice = home_xg / self.time_slices
+        away_prob_per_slice = away_xg / self.time_slices
+        
+        home_wins = 0
+        draws = 0
+        away_wins = 0
+        
+        # 统计半全场 (Half-Time / Full-Time)
+        # H: Home, D: Draw, A: Away
+        ht_ft_counts = {"HH": 0, "HD": 0, "HA": 0, "DH": 0, "DD": 0, "DA": 0, "AH": 0, "AD": 0, "AA": 0}
+        
+        # 批量模拟矩阵运算以提高速度
+        home_goals_matrix = np.random.binomial(1, home_prob_per_slice, (simulations, self.time_slices))
+        away_goals_matrix = np.random.binomial(1, away_prob_per_slice, (simulations, self.time_slices))
+        
+        # 半场进球汇总 (前 45 分钟)
+        ht_home = np.sum(home_goals_matrix[:, :45], axis=1)
+        ht_away = np.sum(away_goals_matrix[:, :45], axis=1)
+        
+        # 全场进球汇总
+        ft_home = np.sum(home_goals_matrix, axis=1)
+        ft_away = np.sum(away_goals_matrix, axis=1)
+        
+        for i in range(simulations):
+            ht_h, ht_a = ht_home[i], ht_away[i]
+            ft_h, ft_a = ft_home[i], ft_away[i]
+            
+            # 全场赛果
+            if ft_h > ft_a:
+                home_wins += 1
+                ft_res = "H"
+            elif ft_h == ft_a:
+                draws += 1
+                ft_res = "D"
+            else:
+                away_wins += 1
+                ft_res = "A"
+                
+            # 半场赛果
+            if ht_h > ht_a:
+                ht_res = "H"
+            elif ht_h == ht_a:
+                ht_res = "D"
+            else:
+                ht_res = "A"
+                
+            ht_ft_counts[f"{ht_res}{ft_res}"] += 1
+            
+        return {
+            "home_win_prob": round(home_wins / simulations, 4),
+            "draw_prob": round(draws / simulations, 4),
+            "away_win_prob": round(away_wins / simulations, 4),
+            "half_full_time": {k: round(v / simulations, 4) for k, v in ht_ft_counts.items()}
+        }
+
 # --- 工具函数供 Agent 调用 ---
 def run_monte_carlo_ht_ft(home_xg: float, away_xg: float) -> str:
     """
