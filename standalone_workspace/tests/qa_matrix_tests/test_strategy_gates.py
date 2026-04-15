@@ -7,6 +7,8 @@ from qa_engine.coverage_matrix import matrix_cover
 from tools.smart_bet_selector import SmartBetSelector
 from tools.settlement_engine import SettlementEngine
 from tools.parlay_rules_engine import ParlayRulesEngine
+from tools.lottery_router import LotteryRouter
+import pytest
 
 @matrix_cover(play_type="ZUCAI_RENJIU", stage="SELECTION")
 def test_zucai_selection_edge():
@@ -132,5 +134,126 @@ def test_zucai_4_goals_settlement():
     engine = SettlementEngine()
     res = engine.determine_all_play_types_results("2-1")
     assert res["GOALS"] == "3"
+
+@matrix_cover(play_type="JINGCAI_WDL", stage="BETTING")
+def test_jingcai_wdl_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "WDL", "legs": [{"match_id": "M1", "odds": 2.0}]}
+    res = router.route_and_validate("JINGCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="JINGCAI_HANDICAP_WDL", stage="BETTING")
+def test_jingcai_handicap_betting():
+    router = LotteryRouter()
+    # Jingcai must reject decimal handicaps
+    ticket = {"play_type": "HANDICAP_WDL", "legs": [{"match_id": "M1", "handicap": 0.5, "odds": 2.0}]}
+    with pytest.raises(ValueError, match="绝对不存在小数让球"):
+        router.route_and_validate("JINGCAI", ticket)
+
+@matrix_cover(play_type="JINGCAI_CS", stage="BETTING")
+def test_jingcai_cs_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "CS", "legs": [{"match_id": "M1", "odds": 7.0}]}
+    res = router.route_and_validate("JINGCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="JINGCAI_GOALS", stage="BETTING")
+def test_jingcai_goals_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "GOALS", "legs": [{"match_id": "M1", "odds": 3.0}]}
+    res = router.route_and_validate("JINGCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="JINGCAI_HTFT", stage="BETTING")
+def test_jingcai_htft_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "HTFT", "legs": [{"match_id": "M1", "odds": 4.0}]}
+    res = router.route_and_validate("JINGCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="JINGCAI_MIXED_PARLAY", stage="BETTING")
+def test_jingcai_mixed_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "MIXED_PARLAY", "legs": [{"match_id": "M1", "play_type": "WDL", "odds": 2.0}, {"match_id": "M2", "play_type": "CS", "odds": 7.0}]}
+    res = router.route_and_validate("JINGCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="BEIDAN_WDL", stage="BETTING")
+def test_beidan_wdl_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "WDL", "legs": [{"match_id": "M1"}]}
+    res = router.route_and_validate("BEIDAN", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="BEIDAN_SFGG", stage="BETTING")
+def test_beidan_sfgg_betting():
+    router = LotteryRouter()
+    # Beidan SFGG must have decimal handicap
+    ticket = {"play_type": "SFGG", "legs": [{"match_id": "M1", "handicap": 0.5}]}
+    res = router.route_and_validate("BEIDAN", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="BEIDAN_UP_DOWN_ODD_EVEN", stage="BETTING")
+def test_beidan_udoe_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "UP_DOWN_ODD_EVEN", "legs": [{"match_id": "M1"}]}
+    res = router.route_and_validate("BEIDAN", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="BEIDAN_GOALS", stage="BETTING")
+def test_beidan_goals_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "GOALS", "legs": [{"match_id": "M1"}]}
+    res = router.route_and_validate("BEIDAN", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="BEIDAN_HTFT", stage="BETTING")
+def test_beidan_htft_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "HTFT", "legs": [{"match_id": "M1"}]}
+    res = router.route_and_validate("BEIDAN", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="BEIDAN_CS", stage="BETTING")
+def test_beidan_cs_betting():
+    router = LotteryRouter()
+    ticket = {"play_type": "CS", "legs": [{"match_id": "M1"}]}
+    res = router.route_and_validate("BEIDAN", ticket)
+    assert res["status"] == "SUCCESS"
+
+
+@matrix_cover(play_type="ZUCAI_14_MATCH", stage="BETTING")
+def test_zucai_14_betting():
+    router = LotteryRouter()
+    # 14 match must have exactly 14 legs
+    legs = [{"match_id": f"M{i}"} for i in range(14)]
+    ticket = {"play_type": "14_match", "legs": legs}
+    res = router.route_and_validate("ZUCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="ZUCAI_RENJIU", stage="BETTING")
+def test_zucai_renjiu_betting():
+    router = LotteryRouter()
+    # Renjiu must have exactly 9 legs
+    legs = [{"match_id": f"M{i}"} for i in range(9)]
+    ticket = {"play_type": "renjiu", "legs": legs}
+    res = router.route_and_validate("ZUCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="ZUCAI_6_HTFT", stage="BETTING")
+def test_zucai_6_htft_betting():
+    router = LotteryRouter()
+    legs = [{"match_id": f"M{i}"} for i in range(6)]
+    ticket = {"play_type": "6_htft", "legs": legs}
+    res = router.route_and_validate("ZUCAI", ticket)
+    assert res["status"] == "SUCCESS"
+
+@matrix_cover(play_type="ZUCAI_4_GOALS", stage="BETTING")
+def test_zucai_4_goals_betting():
+    router = LotteryRouter()
+    legs = [{"match_id": f"M{i}"} for i in range(4)]
+    ticket = {"play_type": "4_goals", "legs": legs}
+    res = router.route_and_validate("ZUCAI", ticket)
+    assert res["status"] == "SUCCESS"
 
 
