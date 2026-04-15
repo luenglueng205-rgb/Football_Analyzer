@@ -45,3 +45,37 @@ def test_metamorphic_cancellation_invariance():
     res2 = engine.determine_all_play_types_results("9-9", status="POSTPONED")
     assert res1["odds_applied"] == 1.0 and res1["status"] == "VOID"
     assert res2["odds_applied"] == 1.0 and res2["status"] == "VOID"
+
+@matrix_cover(play_type="JINGCAI_HANDICAP_WDL", stage="SETTLEMENT")
+def test_jingcai_handicap_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("1-2", handicaps={"JINGCAI_HANDICAP": 1})
+    assert res["JINGCAI_HANDICAP_WDL"] == "1" # 1+1 = 2, Draw
+
+@matrix_cover(play_type="JINGCAI_CS", stage="SETTLEMENT")
+def test_jingcai_cs_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("3-1")
+    assert res["CS"] == "3-1"
+
+@matrix_cover(play_type="JINGCAI_GOALS", stage="SETTLEMENT")
+def test_jingcai_goals_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("2-2")
+    assert res["GOALS"] == "4"
+
+@matrix_cover(play_type="JINGCAI_HTFT", stage="SETTLEMENT")
+def test_jingcai_htft_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("2-1", ht_score="0-1")
+    assert res["HTFT"] == "0-3" # HT Away(0), FT Home(3)
+
+@matrix_cover(play_type="JINGCAI_MIXED_PARLAY", stage="SETTLEMENT")
+def test_jingcai_mixed_settlement():
+    engine = SettlementEngine()
+    # Mixed parlay relies on the underlying results being present
+    res = engine.determine_all_play_types_results("1-0", ht_score="0-0", handicaps={"JINGCAI_HANDICAP": -1})
+    assert res["WDL"] == "3"
+    assert res["JINGCAI_HANDICAP_WDL"] == "1"
+    assert res["HTFT"] == "1-3"
+
