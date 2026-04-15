@@ -79,3 +79,58 @@ def test_jingcai_mixed_settlement():
     assert res["JINGCAI_HANDICAP_WDL"] == "1"
     assert res["HTFT"] == "1-3"
 
+@matrix_cover(play_type="BEIDAN_WDL", stage="SETTLEMENT")
+def test_beidan_wdl_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("0-0")
+    assert res["WDL"] == "1"
+
+@matrix_cover(play_type="BEIDAN_SFGG", stage="SETTLEMENT")
+def test_beidan_sfgg_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("1-1", handicaps={"BEIDAN_HANDICAP": 0.5})
+    assert res["BEIDAN_HANDICAP_WDL"] == "3" # 1.5 > 1 -> Home Win
+
+@matrix_cover(play_type="BEIDAN_GOALS", stage="SETTLEMENT")
+def test_beidan_goals_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("4-4")
+    assert res["GOALS"] == "7" # Capped at 7
+
+@matrix_cover(play_type="BEIDAN_HTFT", stage="SETTLEMENT")
+def test_beidan_htft_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("0-0", ht_score="0-0")
+    assert res["HTFT"] == "1-1"
+
+@matrix_cover(play_type="BEIDAN_CS", stage="SETTLEMENT")
+def test_beidan_cs_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("0-2")
+    assert res["CS"] == "0-2"
+
+@matrix_cover(play_type="ZUCAI_14_MATCH", stage="SETTLEMENT")
+def test_zucai_14_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("3-0")
+    assert res["WDL"] == "3"
+
+@matrix_cover(play_type="ZUCAI_RENJIU", stage="SETTLEMENT")
+def test_zucai_renjiu_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("1-1")
+    assert res["WDL"] == "1"
+
+@matrix_cover(play_type="ZUCAI_6_HTFT", stage="SETTLEMENT")
+def test_zucai_6_htft_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("2-0", ht_score="1-0")
+    assert res["HTFT"] == "3-3"
+
+@matrix_cover(play_type="ZUCAI_4_GOALS", stage="SETTLEMENT")
+def test_zucai_4_goals_settlement():
+    engine = SettlementEngine()
+    res = engine.determine_all_play_types_results("2-1")
+    assert res["GOALS"] == "3"
+
+
