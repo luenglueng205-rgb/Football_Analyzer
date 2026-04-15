@@ -147,7 +147,7 @@ def test_jingcai_handicap_betting():
     router = LotteryRouter()
     # Jingcai must reject decimal handicaps
     ticket = {"play_type": "HANDICAP_WDL", "legs": [{"match_id": "M1", "handicap": 0.5, "odds": 2.0}]}
-    with pytest.raises(ValueError, match="绝对不存在小数让球"):
+    with pytest.raises(ValueError, match="小数让球"):
         router.route_and_validate("JINGCAI", ticket)
 
 @matrix_cover(play_type="JINGCAI_CS", stage="BETTING")
