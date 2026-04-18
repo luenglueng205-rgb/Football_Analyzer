@@ -58,6 +58,7 @@ global_macro_quant/
 **/chroma.sqlite3
 **/ledger.db
 **/snapshots.db
+!**/chroma_db_part_*
 
 # Generated reports / QA outputs
 **/tests/qa_reports/**
