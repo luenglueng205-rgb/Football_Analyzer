@@ -6,35 +6,175 @@ from chromadb.config import Settings
 import logging
 from datetime import datetime
 from tools.paths import data_dir
+import hashlib
+import math
+import re
 
 logger = logging.getLogger(__name__)
+
+
+class _EmbeddingFunctionAdapter:
+    def __init__(self, embedding_function: Any):
+        self._embedding_function = embedding_function
+
+    def __call__(self, input):
+        if isinstance(input, str):
+            texts = [input]
+        else:
+            texts = list(input)
+        return self._embedding_function(texts)
+
+    def embed_query(self, input):
+        if hasattr(self._embedding_function, "embed_query"):
+            return self._embedding_function.embed_query(input)
+        return self.__call__(input)
+
+    def embed_documents(self, input):
+        if hasattr(self._embedding_function, "embed_documents"):
+            return self._embedding_function.embed_documents(input)
+        return self.__call__(input)
+
+    def name(self) -> str:
+        if hasattr(self._embedding_function, "name"):
+            try:
+                return str(self._embedding_function.name())
+            except Exception:
+                return type(self._embedding_function).__name__
+        return type(self._embedding_function).__name__
+
+    def get_config(self) -> Dict[str, Any]:
+        if hasattr(self._embedding_function, "get_config"):
+            try:
+                cfg = self._embedding_function.get_config()
+                if isinstance(cfg, dict):
+                    return cfg
+            except Exception:
+                pass
+        return {"type": "legacy"}
+
+    @staticmethod
+    def build_from_config(config: Dict[str, Any]) -> "_EmbeddingFunctionAdapter":
+        return NotImplemented
+
+    def is_legacy(self) -> bool:
+        if hasattr(self._embedding_function, "is_legacy"):
+            try:
+                return bool(self._embedding_function.is_legacy())
+            except Exception:
+                return True
+        return True
+
+
+def _ensure_embedding_function(embedding_function: Any) -> Any:
+    required = ("__call__", "name", "get_config", "is_legacy", "embed_query")
+    if all(hasattr(embedding_function, attr) for attr in required):
+        return embedding_function
+    return _EmbeddingFunctionAdapter(embedding_function)
+
+
+class LocalHashEmbeddingFunction:
+    def __init__(self, dim: int = 64):
+        self.dim = int(dim)
+
+    @staticmethod
+    def name() -> str:
+        return "local_hash"
+
+    def get_config(self) -> dict:
+        return {"dim": self.dim}
+
+    @staticmethod
+    def build_from_config(config: Dict[str, Any]) -> "LocalHashEmbeddingFunction":
+        dim = 64
+        if isinstance(config, dict) and config.get("dim") is not None:
+            try:
+                dim = int(config["dim"])
+            except Exception:
+                dim = 64
+        return LocalHashEmbeddingFunction(dim=dim)
+
+    def default_space(self) -> str:
+        return "l2"
+
+    def supported_spaces(self) -> List[str]:
+        return ["cosine", "l2", "ip"]
+
+    def validate_config_update(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> None:
+        return
+
+    @staticmethod
+    def validate_config(config: Dict[str, Any]) -> None:
+        return
+
+    def embed_query(self, input):
+        return self.__call__(input)
+
+    def embed_documents(self, input):
+        return self.__call__(input)
+
+    def is_legacy(self) -> bool:
+        cfg = self.get_config()
+        rebuilt = self.build_from_config(cfg)
+        return rebuilt is NotImplemented or rebuilt is None
+
+    def __call__(self, input):
+        if isinstance(input, str):
+            texts = [input]
+        else:
+            texts = list(input)
+        out = []
+        for t in texts:
+            vec = [0.0] * self.dim
+            for tok in re.findall(r"[A-Za-z0-9\u4e00-\u9fff]+", (t or "").lower()):
+                h = hashlib.blake2b(tok.encode("utf-8"), digest_size=8).digest()
+                idx = int.from_bytes(h[:4], "little") % self.dim
+                sign = 1.0 if (h[4] % 2 == 0) else -1.0
+                vec[idx] += sign
+            norm = math.sqrt(sum(v * v for v in vec))
+            if norm > 0:
+                vec = [v / norm for v in vec]
+            out.append(vec)
+        return out
+
 
 class MemoryManager:
     """
     系统的长期记忆中枢。
     使用 ChromaDB 在本地持久化球队的历史表现、教练战术、伤病影响等核心领悟(Insights)。
     """
-    def __init__(self, db_path=None):
+    def __init__(self, db_path=None, *, collection_name: str = "football_insights", embedding_function=None):
         self.db_path = db_path or os.path.join(data_dir(), "chroma_db")
         os.makedirs(self.db_path, exist_ok=True)
         
         # 初始化 Chroma 客户端 (持久化到本地)
         self.client = chromadb.PersistentClient(path=self.db_path)
         
-        # 默认使用 OpenAI 的 text-embedding-3-small 模型 (需确保环境变量有 OPENAI_API_KEY)
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            self.ef = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=api_key,
-                model_name="text-embedding-3-small"
-            )
+        if embedding_function is not None:
+            self.ef = _ensure_embedding_function(embedding_function)
+            effective_collection_name = collection_name
         else:
-            # Fallback 到默认的本地模型
-            self.ef = embedding_functions.DefaultEmbeddingFunction()
+            backend = (os.getenv("MEMORY_EMBEDDING_BACKEND") or "local").strip().lower()
+            if backend == "openai":
+                api_key = os.getenv("OPENAI_API_KEY")
+                if api_key:
+                    self.ef = embedding_functions.OpenAIEmbeddingFunction(
+                        api_key=api_key,
+                        model_name="text-embedding-3-small"
+                    )
+                    effective_collection_name = collection_name
+                else:
+                    self.ef = LocalHashEmbeddingFunction()
+                    effective_collection_name = f"{collection_name}_local"
+            elif backend == "default":
+                self.ef = embedding_functions.DefaultEmbeddingFunction()
+                effective_collection_name = f"{collection_name}_default"
+            else:
+                self.ef = LocalHashEmbeddingFunction()
+                effective_collection_name = f"{collection_name}_local"
             
         # 创建或获取 Collection
         self.collection = self.client.get_or_create_collection(
-            name="football_insights",
+            name=effective_collection_name,
             embedding_function=self.ef
         )
 
@@ -132,17 +272,21 @@ class MemoryManager:
                 ]
             }
             
-            # 注意：这里我们传入一个虚拟的查询文本或直接留空，完全依靠 where 过滤。
-            # ChromaDB 要求必须有 query_texts 或 query_embeddings，我们随便传一个即可，因为完全靠 where 拦截。
-            results = self.collection.query(
-                query_texts=["odds matching"],
-                n_results=limit,
-                where=where_clause
+            results = self.collection.get(
+                where=where_clause,
+                limit=limit,
+                include=["documents", "metadatas"]
             )
-            
-            if not results["documents"] or not results["documents"][0]:
+            docs = results.get("documents") or []
+            metas = results.get("metadatas") or []
+
+            if not docs:
                 return {"ok": True, "data": [], "message": "未找到相似赔率的历史比赛"}
-                
-            return {"ok": True, "data": results["documents"][0]}
+
+            out = []
+            for i, doc in enumerate(docs):
+                meta = metas[i] if i < len(metas) else {}
+                out.append({"insight": doc, "metadata": meta})
+            return {"ok": True, "data": out}
         except Exception as e:
             return {"ok": False, "error": str(e)}

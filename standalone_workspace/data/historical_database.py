@@ -19,14 +19,14 @@ from collections import defaultdict, Counter
 from datetime import datetime
 import statistics
 
-# 路径设置 - 使用相对于项目目录的路径
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # football-lottery-analyst/data/
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)  # football-lottery-analyst/
+from tools.paths import data_dir, datasets_dir
 
-# 项目内部数据目录 (相对于项目根目录)
-DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
-RAW_DATA_DIR = os.path.join(DATA_DIR, 'raw')
-CHINESE_DATA_DIR = os.path.join(DATA_DIR, 'chinese_mapped')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+RAW_DATA_DIR = os.path.join(datasets_dir(), "raw")
+CHINESE_DATA_DIR = os.path.join(datasets_dir(), "chinese_mapped")
 
 
 class HistoricalDatabase:
@@ -55,7 +55,7 @@ class HistoricalDatabase:
     
     def _load_league_mapping(self):
         """加载联赛映射"""
-        mapping_file = os.path.join(DATA_DIR, 'league_mapping.json')
+        mapping_file = os.path.join(data_dir(), "league_mapping.json")
         if os.path.exists(mapping_file):
             with open(mapping_file, 'r', encoding='utf-8') as f:
                 self.league_mapping = json.load(f)

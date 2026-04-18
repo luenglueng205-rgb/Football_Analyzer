@@ -2,6 +2,9 @@ import os
 import json
 from openai import AsyncOpenAI
 from datetime import datetime
+from pathlib import Path
+
+from tools.paths import data_dir
 
 class PublisherAgent:
     """
@@ -11,11 +14,40 @@ class PublisherAgent:
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
         api_key = os.getenv("OPENAI_API_KEY", "dummy-key-for-test")
+        self.api_key = api_key
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         
+    def report_path(self, home: str, away: str, date_str: str) -> str:
+        safe_home = str(home).replace("/", "_").replace("\\", "_").strip()
+        safe_away = str(away).replace("/", "_").replace("\\", "_").strip()
+        filename = f"{date_str}_{safe_home}_vs_{safe_away}.md"
+        root = Path(data_dir("reports"))
+        os.makedirs(root, exist_ok=True)
+        return str(root / filename)
+
+    def _offline_mode(self) -> bool:
+        k = str(self.api_key or "").strip()
+        return (not k) or (k in {"dummy-key-for-test", "dummy_key", "your_api_key_here"})
+
     async def publish(self, home: str, away: str, os_result: dict) -> str:
         print(f"\n[📰 Publisher] 主公，您的专属 AI 军师正在为您起草《破阵锦囊》...")
         
+        date_str = datetime.now().strftime("%Y%m%d")
+        filename = self.report_path(home, away, date_str)
+        if self._offline_mode():
+            report = (
+                f"# 破阵锦囊：{home} vs {away}\n\n"
+                f"日期：{date_str}\n\n"
+                "## 离线模式\n\n"
+                "当前未配置可用的 OPENAI_API_KEY，已回退为结构化摘要。\n\n"
+                "```json\n"
+                f"{json.dumps(os_result, ensure_ascii=False, indent=2)[:4000]}\n"
+                "```\n"
+            )
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(report)
+            return report
+
         prompt = f"""
 你是主公（用户）身边最忠诚、最睿智的首席 AI 数字军师（Persona：有温度、有灵魂的卧龙）。
 你的文风不应该是冷冰冰的机器日志，也不该是傲慢的华尔街交易员，而应该是一位深谙兵法、体贴主公资金安全、且精通现代数字博彩数学（泊松分布、凯利公式、竞彩/北单规则）的超级智囊。
@@ -38,10 +70,6 @@ class PublisherAgent:
             )
             report = response.choices[0].message.content
             
-            # 保存到本地文件
-            date_str = datetime.now().strftime("%Y%m%d")
-            filename = f"reports/{date_str}_{home}_vs_{away}.md"
-            os.makedirs("reports", exist_ok=True)
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(report)
             print(f"[📰 Publisher] 研报已生成并保存至: {filename}")

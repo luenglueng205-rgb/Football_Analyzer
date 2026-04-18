@@ -1,0 +1,7 @@
+- [x] 自检命令能在独立版离线模式运行并输出 JSON（包含版本信息、能力矩阵、历史数据状态、漂移诊断）
+- [x] 自检命令能在 OpenClaw 适配版通过 MCP tool 调用并输出同一 schema
+- [x] 能力矩阵覆盖 竞彩足球 / 北单 / 足彩，且每项有 PASS/DEGRADED/FAIL 与原因
+- [x] 22 万历史数据状态在自检中可见：原始 JSON 路径与大小、Chroma 库规模、默认工作流引用点
+- [x] root/data 与 standalone_workspace/data 的错配被明确报告，并给出最小修复建议
+- [x] Drift & Bloat 报告输出 Keep/Cut/Merge 清单（带文件级引用）
+- [x] Gatekeeper Core suite 覆盖 Self-Audit 与 Capability Matrix smoke tests，防止回归

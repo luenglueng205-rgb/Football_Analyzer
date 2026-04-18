@@ -143,6 +143,16 @@ class SaveInsightArgs(BaseModel):
     insight: str = Field(..., description="高度浓缩的核心领悟，例如：切尔西主场极度依赖边路传中，中路渗透为0")
     match_id: str = Field(default="unknown")
 
+class ComplexParlayArgs(BaseModel):
+    matches_odds: List[List[float]] = Field(description="A 2D array of odds. Each inner array represents a match.")
+    m: int = Field(description="The number of matches in the parlay")
+    n: int = Field(description="The parlay type")
+    stake_per_bet: float = Field(2.0, description="Stake per single combination bet")
+
+class ChuantongCombinationsArgs(BaseModel):
+    match_selections: List[int] = Field(description="选定的场次结果数列表。")
+    play_type: str = Field(description="玩法类型: 14_match, renjiu, 6_htft, 4_goals")
+
 _TOOLS = [
     ToolDefinition("analyze_water_drop", "计算从初盘到临场的水位下降幅度", WaterDropArgs, TOOL_MAPPING["analyze_water_drop"]),
     ToolDefinition("get_team_stats", "获取球队历史统计数据", TeamStatsArgs, TOOL_MAPPING["get_team_stats"]),
@@ -167,7 +177,9 @@ _TOOLS = [
     ToolDefinition("analyze_dark_intel", "分析暗网情报", DarkIntelArgs, TOOL_MAPPING["analyze_dark_intel"]),
     ToolDefinition("optimize_portfolio", "优化投资组合", OptimizePortfolioArgs, TOOL_MAPPING["optimize_portfolio"]),
     ToolDefinition("retrieve_team_memory", "检索关于某支球队的长期历史记忆和核心领悟", RetrieveMemoryArgs, TOOL_MAPPING["retrieve_team_memory"]),
-    ToolDefinition("save_team_insight", "在分析结束后，将重要的战术发现或模型领悟持久化到长期记忆库", SaveInsightArgs, TOOL_MAPPING["save_team_insight"])
+    ToolDefinition("save_team_insight", "在分析结束后，将重要的战术发现或模型领悟持久化到长期记忆库", SaveInsightArgs, TOOL_MAPPING["save_team_insight"]),
+    ToolDefinition("calculate_complex_parlay", "计算包含双选的 M串N 复式组合成本与最大回报", ComplexParlayArgs, TOOL_MAPPING.get("calculate_complex_parlay")),
+    ToolDefinition("calculate_chuantong_combinations", "计算足彩任九或14场等复式注数与成本", ChuantongCombinationsArgs, TOOL_MAPPING.get("calculate_chuantong_combinations"))
 ]
 
 REGISTRY = {t.name: t for t in _TOOLS}

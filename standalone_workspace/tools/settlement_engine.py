@@ -29,38 +29,81 @@ class SettlementEngine:
             total_goals = home_goals + away_goals
         except ValueError:
             return {"status": "VOID", "official_result": "REFUND", "odds_applied": 1.0}
-            
-        results = {
-            "status": "SETTLED",
-            "WDL": "3" if home_goals > away_goals else "1" if home_goals == away_goals else "0",
-            "GOALS": str(min(total_goals, 7)), # Usually capped at 7+
-            "CS": f"{home_goals}-{away_goals}",
-            "ODD_EVEN": "ODD" if total_goals % 2 != 0 else "EVEN"
-        }
+
+        wdl = "3" if home_goals > away_goals else "1" if home_goals == away_goals else "0"
+        goals = str(min(total_goals, 7))
+        cs = f"{home_goals}-{away_goals}"
+        odd_even = "ODD" if total_goals % 2 != 0 else "EVEN"
         
-        # Handicap WDL
-        if handicaps:
-            jc_h = handicaps.get("JINGCAI_HANDICAP", 0)
-            adjusted_home_jc = home_goals + jc_h
-            results["JINGCAI_HANDICAP_WDL"] = "3" if adjusted_home_jc > away_goals else "1" if adjusted_home_jc == away_goals else "0"
+        handicaps = handicaps if isinstance(handicaps, dict) else {}
+        jc_h = handicaps.get("JINGCAI_HANDICAP", 0)
+        bd_h = handicaps.get("BEIDAN_HANDICAP", 0)
+        try:
+            jc_h_f = float(jc_h)
+        except Exception:
+            jc_h_f = 0.0
+        try:
+            bd_h_f = float(bd_h)
+        except Exception:
+            bd_h_f = 0.0
+
+        adjusted_home_jc = float(home_goals) + jc_h_f
+        adjusted_home_bd = float(home_goals) + bd_h_f
+        jingcai_handicap_wdl = "3" if adjusted_home_jc > float(away_goals) else "1" if adjusted_home_jc == float(away_goals) else "0"
+        beidan_handicap_wdl = "3" if adjusted_home_bd > float(away_goals) else "1" if adjusted_home_bd == float(away_goals) else "0"
             
-            bd_h = handicaps.get("BEIDAN_HANDICAP", 0)
-            adjusted_home_bd = home_goals + bd_h
-            results["BEIDAN_HANDICAP_WDL"] = "3" if adjusted_home_bd > away_goals else "1" if adjusted_home_bd == away_goals else "0"
-            
-        # HTFT
+        htft = None
         if ht_score:
             try:
-                ht_home, ht_away = map(int, ht_score.split("-"))
+                ht_home, ht_away = map(int, str(ht_score).split("-"))
                 ht_res = "3" if ht_home > ht_away else "1" if ht_home == ht_away else "0"
-                results["HTFT"] = f"{ht_res}-{results['WDL']}"
-            except ValueError:
-                pass
+                htft = f"{ht_res}-{wdl}"
+            except Exception:
+                htft = None
                 
-        # Beidan UP_DOWN_ODD_EVEN (0-2 goals = DOWN, 3+ goals = UP)
         up_down = "UP" if total_goals >= 3 else "DOWN"
-        results["UP_DOWN_ODD_EVEN"] = f"{up_down}_{results['ODD_EVEN']}"
-        
+        up_down_odd_even = f"{up_down}_{odd_even}"
+
+        results = {
+            "status": "SETTLED",
+            "ft_score": ft_score,
+            "ht_score": ht_score,
+            "WDL": wdl,
+            "GOALS": goals,
+            "CS": cs,
+            "ODD_EVEN": odd_even,
+            "UP_DOWN_ODD_EVEN": up_down_odd_even,
+            "JINGCAI_HANDICAP_WDL": jingcai_handicap_wdl,
+            "BEIDAN_HANDICAP_WDL": beidan_handicap_wdl,
+            "HTFT": htft,
+        }
+
+        results.update(
+            {
+                "JINGCAI_WDL": wdl,
+                "JINGCAI_GOALS": goals,
+                "JINGCAI_CS": cs,
+                "JINGCAI_HTFT": htft,
+                "JINGCAI_MIXED_PARLAY": {
+                    "WDL": wdl,
+                    "JINGCAI_HANDICAP_WDL": jingcai_handicap_wdl,
+                    "GOALS": goals,
+                    "CS": cs,
+                    "HTFT": htft,
+                },
+                "BEIDAN_WDL": wdl,
+                "BEIDAN_SFGG": beidan_handicap_wdl,
+                "BEIDAN_UP_DOWN_ODD_EVEN": up_down_odd_even,
+                "BEIDAN_GOALS": goals,
+                "BEIDAN_CS": cs,
+                "BEIDAN_HTFT": htft,
+                "ZUCAI_14_MATCH": wdl,
+                "ZUCAI_RENJIU": wdl,
+                "ZUCAI_6_HTFT": htft,
+                "ZUCAI_4_GOALS": goals,
+            }
+        )
+
         return results
 
     def settle_ticket(self, ticket: dict, match_results: dict) -> dict:

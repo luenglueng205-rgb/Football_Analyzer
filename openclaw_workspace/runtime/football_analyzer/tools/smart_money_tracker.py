@@ -1,6 +1,6 @@
 import os
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 class SmartMoneyTracker:
     """
@@ -42,3 +42,50 @@ class SmartMoneyTracker:
             return {"is_anomaly": True, "trigger_side": "draw", "reason": f"平局赔率暴跌 {draw_drop*100:.1f}%，疑似默契球防范"}
             
         return {"is_anomaly": False, "reason": "赔率波动正常"}
+
+    @staticmethod
+    def remove_juice(home: float, draw: float, away: float) -> Tuple[float, float, float]:
+        if home <= 0 or draw <= 0 or away <= 0:
+            return 0.0, 0.0, 0.0
+        implied_home = 1.0 / home
+        implied_draw = 1.0 / draw
+        implied_away = 1.0 / away
+        total_implied = implied_home + implied_draw + implied_away
+        return implied_home / total_implied, implied_draw / total_implied, implied_away / total_implied
+
+    @staticmethod
+    def detect_sharp_money(opening_odds: Dict[str, float], live_odds: Dict[str, float], threshold: float = 0.04) -> Dict[str, Any]:
+        oh, od, oa = opening_odds.get("home", 0), opening_odds.get("draw", 0), opening_odds.get("away", 0)
+        lh, ld, la = live_odds.get("home", 0), live_odds.get("draw", 0), live_odds.get("away", 0)
+
+        if not all([oh, od, oa, lh, ld, la]):
+            return {"has_sharp_money": False, "report": "赔率数据不全"}
+
+        true_open_h, true_open_d, true_open_a = SmartMoneyTracker.remove_juice(float(oh), float(od), float(oa))
+        true_live_h, true_live_d, true_live_a = SmartMoneyTracker.remove_juice(float(lh), float(ld), float(la))
+
+        delta_h = true_live_h - true_open_h
+        delta_d = true_live_d - true_open_d
+        delta_a = true_live_a - true_open_a
+
+        sharp_direction = None
+        max_delta = 0.0
+
+        if delta_h > threshold:
+            sharp_direction, max_delta = "home", float(delta_h)
+        elif delta_a > threshold:
+            sharp_direction, max_delta = "away", float(delta_a)
+        elif delta_d > threshold:
+            sharp_direction, max_delta = "draw", float(delta_d)
+
+        if sharp_direction:
+            severity = "CRITICAL" if max_delta >= 0.07 else "WARNING"
+            return {
+                "has_sharp_money": True,
+                "direction": sharp_direction,
+                "delta_probability": max_delta,
+                "severity": severity,
+                "report": f"[{severity}] 聪明资金异动！{sharp_direction}方向真实胜率被资金砸高了 {max_delta*100:.1f}%！",
+            }
+
+        return {"has_sharp_money": False, "report": "盘口平稳，未检测到主力资金介入。"}

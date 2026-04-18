@@ -14,6 +14,8 @@ from .base import BaseAgent, AgentStatus, Message
 
 logger = logging.getLogger(__name__)
 
+from core.domain_kernel import DomainKernel
+
 
 class RiskManagerAgent(BaseAgent):
     """
@@ -58,12 +60,15 @@ class RiskManagerAgent(BaseAgent):
             result = {"error": f"Unknown action: {action}"}
         
         self.status = AgentStatus.COMPLETED
+
+        if isinstance(result, dict):
+            result.setdefault("data_source", f"{self.agent_id}:{action}")
         
         # 如果子方法返回了 next_agent (如触发了打回)，保留它
         if "next_agent" not in result:
             result["next_agent"] = None
             
-        return result
+        return DomainKernel.attach("risk-manager", result)
     
     def _risk_assessment(self, params: Dict) -> Dict:
         """风险评估"""

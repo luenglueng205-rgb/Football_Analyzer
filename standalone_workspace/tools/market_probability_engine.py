@@ -1,12 +1,28 @@
 from dataclasses import dataclass
 import math
-from typing import Dict
+from typing import Dict, Optional
 
 
 @dataclass(frozen=True)
 class MarketProbabilityEngine:
     max_goals: int = 7
     max_score: int = 6
+
+    def implied_probabilities_from_odds(self, odds: Dict[str, Optional[float]]) -> Dict[str, float]:
+        inv: Dict[str, float] = {}
+        for k, v in (odds or {}).items():
+            try:
+                fv = float(v)
+            except Exception:
+                continue
+            if fv <= 0:
+                continue
+            inv[str(k)] = 1.0 / fv
+
+        s = sum(inv.values())
+        if s <= 0:
+            return {str(k): 0.0 for k in (odds or {}).keys()}
+        return {k: v / s for k, v in inv.items()}
 
     def _poisson_pmf(self, k: int, mu: float) -> float:
         if k < 0:

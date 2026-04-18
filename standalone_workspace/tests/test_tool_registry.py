@@ -1,7 +1,7 @@
 import asyncio
 from tools.tool_registry_v2 import execute_tool, get_openai_tools, get_mcp_tools
 
-async def test_registry():
+async def _run_registry_checks():
     # Test valid args
     res = await execute_tool("analyze_water_drop", {"opening_water": 1.05, "live_water": 0.85})
     assert res["ok"] is True
@@ -22,6 +22,10 @@ async def test_registry():
     assert len(mcp_tools) > 0
     assert hasattr(mcp_tools[0], "name") # mcp.types.Tool
 
+
+def test_registry():
+    asyncio.run(_run_registry_checks())
+
 if __name__ == "__main__":
-    asyncio.run(test_registry())
+    asyncio.run(_run_registry_checks())
     print("test_registry PASSED")

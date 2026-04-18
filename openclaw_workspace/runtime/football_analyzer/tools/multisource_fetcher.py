@@ -5,6 +5,7 @@ from tools.entity_resolver import EntityResolver
 from tools.snapshot_store import SnapshotStore
 from tools.agent_browser import AgentBrowser
 from tools.api_clients import ForeignAPIClient
+from tools.web_intel_extractor import WebIntelExtractor
 
 
 class MultiSourceFetcher:
@@ -13,6 +14,7 @@ class MultiSourceFetcher:
         self.resolver = resolver or EntityResolver()
         self.browser = AgentBrowser()
         self.foreign_api = ForeignAPIClient()
+        self.web_intel = WebIntelExtractor(browser=self.browser)
 
     def fetch_odds_sync(self, home_team: str, away_team: str) -> dict:
         return self._fetch_odds_impl(home_team=home_team, away_team=away_team)
@@ -48,6 +50,12 @@ class MultiSourceFetcher:
                 },
             }
 
+        intel = self.web_intel.extract_odds(home_team=home_team, away_team=away_team)
+        if intel.get("ok"):
+            meta = intel.get("meta") or {}
+            self.store.insert_snapshot("odds", match_id, str(meta.get("source") or "web_intel"), intel.get("data") or {}, float(meta.get("confidence") or 0.0), False)
+            return intel
+
         # Priority 1: Foreign APIs (The Odds API)
         foreign_odds = self.foreign_api.get_odds(home_team, away_team)
         if foreign_odds.get("ok"):
@@ -74,9 +82,26 @@ class MultiSourceFetcher:
             "meta": {"mock": False, "source": "multisource", "confidence": 0.0, "stale": True},
         }
 
-    def fetch_fixtures_sync(self) -> dict:
-        """Fetch today's fixtures using 500.com via AgentBrowser"""
-        fixtures = self.browser.scrape_500_fixtures()
+    def fetch_fixtures_sync(self, date: str | None = None) -> dict:
+        if date:
+            latest = self.store.get_latest_snapshot(category="fixtures", match_id=f"FIXTURES::{date}")
+            if latest.get("ok"):
+                payload = latest.get("data", {}).get("payload") or {}
+                if isinstance(payload, dict) and isinstance(payload.get("fixtures"), list) and payload.get("fixtures"):
+                    meta = latest.get("data", {}).get("meta") or {}
+                    return {
+                        "ok": True,
+                        "data": {"fixtures": payload.get("fixtures")},
+                        "error": None,
+                        "meta": {
+                            "mock": False,
+                            "source": str(meta.get("source") or "snapshot"),
+                            "confidence": float(meta.get("confidence") or 0.0),
+                            "stale": True,
+                        },
+                    }
+
+        fixtures = self.browser.scrape_500_fixtures(date=date)
         if fixtures:
             return {
                 "ok": True,
@@ -84,6 +109,16 @@ class MultiSourceFetcher:
                 "error": None,
                 "meta": {"mock": False, "source": "500.com", "confidence": 0.9, "stale": False},
             }
+
+        if date:
+            intel_fx = self.web_intel.extract_fixtures(date=date)
+            if intel_fx:
+                return {
+                    "ok": True,
+                    "data": {"fixtures": intel_fx},
+                    "error": None,
+                    "meta": {"mock": False, "source": "web_intel", "confidence": 0.25, "stale": False},
+                }
         return {
             "ok": False,
             "data": None,

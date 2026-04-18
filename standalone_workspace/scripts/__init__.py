@@ -9,17 +9,4 @@ Football Lottery Analysis Agent - OpenClaw Compliant
 
 __version__ = "1.0.0"
 __author__ = "Football Lottery Analyst Team"
-
-from .orchestrator import OrchestratorAgent
-from .scout import ScoutAgent
-from .analyst import AnalystAgent
-from .strategist import StrategistAgent
-from .risk_manager import RiskManagerAgent
-
-__all__ = [
-    "OrchestratorAgent",
-    "ScoutAgent", 
-    "AnalystAgent",
-    "StrategistAgent",
-    "RiskManagerAgent"
-]
+__all__ = []

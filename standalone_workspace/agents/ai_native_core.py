@@ -43,9 +43,26 @@ class AINativeCoreAgent:
             with open(rule_path, "r", encoding="utf-8") as f:
                 self.system_prompt += f.read() + "\n\n"
                 
-        if os.path.exists(market_rule_path):
+        try:
             with open(market_rule_path, "r", encoding="utf-8") as f:
-                self.system_prompt += f.read()
+                markets_rules = f.read()
+            self.system_prompt += f"\n\n{markets_rules}"
+        except Exception:
+            pass
+
+        # 动态加载【灵魂记忆库】
+        try:
+            docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
+            exp_path = os.path.join(docs_dir, "DYNAMIC_EXPERIENCE.md")
+            if os.path.exists(exp_path):
+                with open(exp_path, "r", encoding="utf-8") as f:
+                    dynamic_exp = f.read()
+                self.system_prompt += f"\n\n### 🧠 【你的终身经验法则 (Living Memory)】\n" \
+                                      f"以下是你在过去的真实盈亏中用血泪换来的认知准则！\n" \
+                                      f"你在执行任何分析时，**必须将以下经验作为最高优先级的风控指令**。任何违背这些法则的投注都是绝对禁止的！\n\n" \
+                                      f"{dynamic_exp}"
+        except Exception:
+            pass
                 
         if not self.system_prompt:
             self.system_prompt = "你是一名顶级的 AI 彩票精算师。你需要自主调用工具来分析赛事。"
@@ -67,15 +84,22 @@ class AINativeCoreAgent:
 
         messages = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": f"请为我深度量化分析这场比赛：主队 '{home}' 对阵 客队 '{away}'。当前彩种为：'{lottery_desc}'。\n"
-                                         f"【最高指令】：你是一个统治华尔街的数字博彩基金大脑。你需要自主调用所有可用工具：\n"
-                                         f"1. 必须调用 check_bankroll 查看当前真实可用资金。\n"
-                                         f"2. 【长期记忆】：在开始分析前，必须调用 retrieve_team_memory 提取主客队的历史经验！\n"
-                                         f"3. 必须分析亚盘水位异动和欧亚转换偏差（不要只用泊松）。\n"
-                                         f"4. 决定投资后，必须调用 execute_bet 真正生成实单并写入账本！\n"
-                                         f"5. 【经验沉淀】：在给出最终结论前，必须调用 save_team_insight 将你对本场比赛两队的战术发现或盘口规律分别存入记忆库，供未来使用！\n"
-                                         f"6. 【极致闭环】：如果发现多个机会，必须调用 calculate_parlay 计算串关组合。决定下注后，必须调用 generate_qr_code 生成物理二维码，并调用 send_webhook_notification 将决策推送到手机！\n"
-                                         f"7. 【MOCK 数据隔离】：如果你调用的工具返回了 `\"meta\": {{\"mock\": true}}`，说明该数据为模拟/离线数据，不可信。你在最终决策时，必须对这类数据降权，或者直接拒绝基于该数据进行大额下注（仅输出观察不下注，或者极小仓位）。"}
+            {"role": "user", "content": f"请为我执行【全流程死磕分析】：主队 '{home}' 对阵 客队 '{away}'。当前彩种为：'{lottery_desc}'。\n"
+                                         f"【AI-Native 实战量化指令】：\n"
+                                         f"=== 第一阶段：选场策略 (Match Selection) ===\n"
+                                         f"1. 【联赛降维】：调用 get_league_persona 了解联赛方差特征。\n"
+                                         f"2. 【经验召回与衰减】：调用 retrieve_team_memory 检索主客队教训，注意系统会自动过滤过时记忆。\n"
+                                         f"3. 【赛前筛查】：判断本场比赛是否符合 {lottery_desc} 的选场逻辑。\n"
+                                         f"=== 第二阶段：多维战术与数据分析 (Multi-Dimensional Analysis) ===\n"
+                                         f"4. 【战术相克验证】：结合主客场战术风格进行微观相克推理。\n"
+                                         f"5. 【情报与战意感知】：调用 gather_match_intelligence 获取突发新闻与战意考量。\n"
+                                         f"6. 【历史数据 EV 引擎】：调用 deep_evaluate_all_markets 获取基于22万场历史数据的 EV。\n"
+                                         f"7. 【让球整数铁律】：中国体彩常规让球永远是整数球！强队让-1刚好赢1球叫【让平】。\n"
+                                         f"=== 第三阶段：投注与仓位风控 (Betting & Bankroll Strategy) ===\n"
+                                         f"8. 【复式与双选策略】：严禁思维僵化！绝大多数情况下不要只买单选！如果发现一场比赛胜平负 EV 接近，或需要防冷门，必须采用『双选』(Double Chance)。你可以调用 `calculate_complex_parlay` 计算包含双选的复式投注总成本与最大回报，也可以调用 `calculate_chuantong_combinations` 计算足彩复式。\n"
+                                         f"9. 【严格隔离】：只从属于【{lottery_desc}】专属玩法中挑选。\n"
+                                         f"10. 【拓扑对冲与凯利风控】：利用复式投注构建对冲拓扑。计算出总注数后，结合凯利仓位给出精确的投注金额。EV为负，坚决空仓！\n"
+                                         f"11. 【模拟选号与账本入库】：调用 generate_simulated_ticket 生成模拟选号单。如果是复式，请在 selection 字段或 reasoning 中写明包含的组合注数！"}
         ]
 
         max_loops = 15  # 允许 LLM 最多进行 15 轮的连续工具调用
@@ -91,10 +115,21 @@ class AINativeCoreAgent:
                 )
                 
                 response_message = response.choices[0].message
-                messages.append(response_message)
+                
+                # Pydantic v1 vs v2 compatibility fix: use model_dump() if available, else dict()
+                if hasattr(response_message, "model_dump"):
+                    msg_dict = response_message.model_dump(exclude_unset=True)
+                elif hasattr(response_message, "dict"):
+                    msg_dict = response_message.dict(exclude_unset=True)
+                else:
+                    msg_dict = {"role": response_message.role, "content": response_message.content}
+                    if hasattr(response_message, "tool_calls") and response_message.tool_calls:
+                        msg_dict["tool_calls"] = [{"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in response_message.tool_calls]
+
+                messages.append(msg_dict)
                 
                 # 如果没有调用工具，说明推理完成
-                if not response_message.tool_calls:
+                if not getattr(response_message, "tool_calls", None):
                     # 在最终输出前，拉起 Multi-Agent Debate 进行终极风控裁决
                     debate_engine = MultiAgentDebateEngine()
                     debate_result = await debate_engine.run_debate(
@@ -110,23 +145,34 @@ class AINativeCoreAgent:
                     }
                 
                 # 执行工具
-                for tool_call in response_message.tool_calls:
+                for tool_call in getattr(response_message, "tool_calls", []):
                     function_name = tool_call.function.name
                     try:
                         arguments = json.loads(tool_call.function.arguments)
                         print(f"      [🛠️ MCP Tool] 正在调用 {function_name}({str(arguments)[:200]})")
                     except Exception as e:
                         logger.error(f"Failed to parse tool arguments for {function_name}: {e}")
-                        error_msg = {"ok": False, "error": {"code": "BAD_ARGS", "message": f"Failed to parse arguments as JSON: {str(e)}"}, "meta": {"mock": False}}
-                        if function_name not in gathered_data:
-                            gathered_data[function_name] = []
-                        gathered_data[function_name].append(error_msg)
-                        messages.append({
+                        error_msg = {
+                            "ok": False,
+                            "error": {"code": "BAD_ARGS", "message": f"Failed to parse arguments as JSON: {str(e)}"},
+                            "meta": {"mock": False}
+                        }
+                        
+                        msg_dict = {
                             "tool_call_id": tool_call.id,
                             "role": "tool",
-                            "name": function_name,
-                            "content": str(error_msg)
-                        })
+                            "content": json.dumps(error_msg, ensure_ascii=False),
+                            "name": function_name
+                        }
+                        messages.append(msg_dict)
+                        
+                        if function_name not in gathered_data:
+                            gathered_data[function_name] = []
+                        try:
+                            gathered_data[function_name].append(str(error_msg)[:100])
+                        except Exception:
+                            pass
+                            
                         continue
                         
                     try:
@@ -150,20 +196,27 @@ class AINativeCoreAgent:
                     except Exception:
                         safe_content = {"error": "Unserializable or extremely large tool response."}
 
-                    if function_name not in gathered_data:
-                        gathered_data[function_name] = []
-                    # 仅保存压缩后的安全内容
-                    gathered_data[function_name].append(safe_content)
-                        
                     # 将工具返回结果喂给大模型
-                    messages.append({
+                    content_str = safe_content if isinstance(safe_content, str) else json.dumps(safe_content, ensure_ascii=False)
+                    
+                    msg_dict = {
                         "tool_call_id": tool_call.id,
                         "role": "tool",
-                        "name": function_name,
-                        "content": str(safe_content)
-                    })
+                        "content": content_str,
+                        "name": function_name
+                    }
+                    messages.append(msg_dict)
+                    
+                    if function_name not in gathered_data:
+                        gathered_data[function_name] = []
+                    try:
+                        gathered_data[function_name].append(str(safe_content)[:100])
+                    except Exception:
+                        pass
                     
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 logger.error(f"核心推理崩溃，触发系统级降级容灾: {e}")
                 return {"ai_native_report": "系统遭遇毁灭性打击，已触发降级保护，分析中止。"}
 

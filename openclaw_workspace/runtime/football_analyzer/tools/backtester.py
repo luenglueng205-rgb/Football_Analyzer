@@ -1,13 +1,15 @@
 import json
 import sqlite3
-from typing import Dict, Any
+from typing import Any, Dict, Optional
+
+from tools.paths import data_dir
 
 class SnapshotBacktester:
     """
     P3 回测验证引擎：读取本地的 SnapshotStore 快照进行回测验证。
     """
-    def __init__(self, db_path: str = "data/snapshots.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or data_dir("snapshots.db")
 
     def get_all_matches(self):
         """获取所有已保存过快照的比赛列表"""

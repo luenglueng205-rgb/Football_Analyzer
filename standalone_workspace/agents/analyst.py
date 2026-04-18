@@ -26,8 +26,11 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from .base import BaseAgent, AgentStatus, Message
+from core.recommendation_schema import RecommendationSchemaAdapter
 
 logger = logging.getLogger(__name__)
+
+from core.domain_kernel import DomainKernel
 
 # 引入 Analyzer API 工具库
 try:
@@ -111,11 +114,14 @@ class AnalystAgent(BaseAgent):
             result = {"error": f"Unknown action: {action}"}
         
         self.status = AgentStatus.COMPLETED
+
+        if isinstance(result, dict):
+            result.setdefault("data_source", f"{self.agent_id}:{action}")
         
         # 增加 Handoff (交接) 逻辑
         result["next_agent"] = "strategist"
         
-        return result
+        return DomainKernel.attach("analyst", result)
     
     def _analyze_odds(self, params: Dict) -> Dict:
         """分析赔率（增强版：支持历史数据校准，支持中国彩票多玩法路由）"""
@@ -161,8 +167,8 @@ class AnalystAgent(BaseAgent):
         # 由于在计算 professional_data 的某些项（如 beijing）时需要用到 mu_home/mu_away
         # 所以我们将 mu_home/mu_away 的计算提前到这里
         
-        team_home = AnalyzerAPI.get_team_stats(home_team, league) if API_AVAILABLE else {}
-        team_away = AnalyzerAPI.get_team_stats(away_team, league) if API_AVAILABLE else {}
+        team_home = AnalyzerAPI.get_team_stats(home_team, league) if API_AVAILABLE and home_team else {}
+        team_away = AnalyzerAPI.get_team_stats(away_team, league) if API_AVAILABLE and away_team else {}
 
         avg_total_goals = (league_info or {}).get("avg_total_goals", 2.6)
         avg_home_goals = (league_stats or {}).get("avg_home_goals", float(avg_total_goals) * 0.55)
@@ -205,7 +211,7 @@ class AnalystAgent(BaseAgent):
         # 实时水位监控与亚指让球分析 (Direction C & 亚指深化)
         markets_analysis = markets
         try:
-            if API_AVAILABLE:
+            if API_AVAILABLE and home_team and away_team:
                 live_odds_data = AnalyzerAPI.get_live_odds(home_team, away_team)
                 if live_odds_data:
                     if "european_odds" in live_odds_data:
@@ -431,6 +437,13 @@ class AnalystAgent(BaseAgent):
             clean_data = {k: v for k, v in data.items() if k not in ["status", "timestamp"]}
             data_context = json.dumps(clean_data, ensure_ascii=False)
             data["ai_report"] = LLMService.generate_report(system_prompt, data_context)
+
+        memories = params.get("memories") if isinstance(params, dict) else None
+        if isinstance(memories, list) and memories:
+            data["memory_context"] = list(memories)
+        data["recommendation_schema"] = RecommendationSchemaAdapter.from_analyst_output(
+            data, match_id=params.get("match_id") if isinstance(params, dict) else None, memories=memories
+        ).to_dict()
             
         return data
     

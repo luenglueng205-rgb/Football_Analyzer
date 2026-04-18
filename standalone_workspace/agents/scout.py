@@ -21,6 +21,8 @@ from .base import BaseAgent, AgentStatus, Message
 
 logger = logging.getLogger(__name__)
 
+from core.domain_kernel import DomainKernel
+
 # 引入 Analyzer API 工具库
 try:
     from tools.analyzer_api import AnalyzerAPI
@@ -74,6 +76,9 @@ class ScoutAgent(BaseAgent):
             result = {"error": f"Unknown action: {action}"}
         
         self.status = AgentStatus.COMPLETED
+
+        if isinstance(result, dict):
+            result.setdefault("data_source", f"{self.agent_id}:{action}")
         
         # 保存到记忆
         self.save_context(f"intel_{datetime.now().strftime('%Y%m%d')}", result)
@@ -81,7 +86,7 @@ class ScoutAgent(BaseAgent):
         # 增加 Handoff (交接) 逻辑
         result["next_agent"] = "analyst"
         
-        return result
+        return DomainKernel.attach("scout", result)
     
     def _gather_intelligence(self, params: Dict) -> Dict:
         """

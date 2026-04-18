@@ -25,10 +25,35 @@ homepage: https://github.com/codebuddy/football-lottery-agent
 | Agent ID | 名称 | 职责 | 触发条件 |
 |----------|------|------|----------|
 | `orchestrator` | 调度中心 | 任务分解和协调 | 复杂任务自动触发 |
+| `router` | 价值路由 | 低成本过滤、决定是否进入深度链路 | 赛程/事件进入系统时 |
 | `scout` | 情报搜集 | 球队状态、阵容、伤病 | 分析比赛时 |
 | `analyst` | 赔率分析 | 赔率异常、庄家意图 | 分析赔率时 |
 | `strategist` | 策略制定 | 投注策略、串关方案 | 生成方案时 |
 | `risk-manager` | 风险管理 | 仓位控制、止损 | 所有投注前 |
+
+## Workstream C：Agentic Decision Layer（角色边界）
+
+### Router（价值路由 / Gatekeeper）
+- 只做“是否值得唤醒重链路”的决策，不做投注建议
+- 优先规则引擎，其次（可选）低成本模型；离线/无 Key 必须可运行
+- 输出必须为结构化 JSON，且必须可被 Domain Kernel 校验
+
+### Scout（情报搜集）
+- 只产出可核验的事实与来源摘要（阵容/伤停/新闻/天气/历史标签），不产出“买/不买”
+- 工具优先：先抓数据/记忆，再写摘要；摘要必须可追溯到 evidence/data_source
+
+### Analyst（赔率与盘面）
+- 只产出赔率结构、隐含概率、抽水、异常、EV/阈值等“可计算结果”，不决定下注
+- 输出必须包含用于下游策略与风控的结构化字段（probabilities/markets/anomalies 等）
+
+### Risk Manager（风控与裁决）
+- 唯一有权对“是否执行下注/是否打回重算”给出裁决
+- 不允许引入新玩法/新票面结构；只对既有方案做合规与风险裁决
+- 必须输出 recommendation（approve / reject_and_replan / final_reject / skip）与可解释的 checks
+
+## Domain Kernel（领域内核校验）
+- 每个角色输出必须附带 `domain_kernel` 字段（`core/domain_kernel.py` 生成）
+- 核心检查：schema_version、role、一致性、confidence 范围、tool-first evidence/data_source、关键字段合法性
 
 ## 工作流程
 
@@ -36,6 +61,13 @@ homepage: https://github.com/codebuddy/football-lottery-agent
 用户请求
     │
     ▼
+Router (价值过滤)
+    │
+    ├── IGNORE → 直接跳过
+    │
+    └── DEEP_DIVE → 进入深度链路
+                 │
+                 ▼
 Orchestrator (任务分解)
     │
     ├──────────────────┬──────────────────┐
@@ -128,6 +160,16 @@ ScoutAgent         AnalystAgent      Strategist
 ```json
 {
   "status": "success",
+  "role": "scout|analyst|risk-manager|router",
+  "schema_version": "1.0",
+  "domain_kernel": {
+    "ok": true,
+    "role": "scout",
+    "schema_version": "1.0",
+    "issues": [],
+    "validated_at": "2026-04-16T00:00:00Z",
+    "payload_hash": "..."
+  },
   "data": {
     "match_analysis": { ... },
     "odds_analysis": { ... },
@@ -135,6 +177,8 @@ ScoutAgent         AnalystAgent      Strategist
     "risk_assessment": { ... }
   },
   "confidence": 0.85,
+  "data_source": "tool:...",
+  "evidence": [],
   "warnings": [ ... ]
 }
 ```

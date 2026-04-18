@@ -4,11 +4,13 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from tools.paths import data_dir
+
 
 class SnapshotStore:
-    def __init__(self, db_path: str = "data/snapshots.db"):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or os.path.join(data_dir(), "snapshots.db")
+        os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         self._init_db()
 
     def _init_db(self) -> None:
@@ -141,3 +143,39 @@ class SnapshotStore:
             "meta": {"mock": False, "source": "snapshot_store"},
         }
 
+    def get_match(self, match_id: str) -> Dict[str, Any]:
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute(
+            """
+        SELECT league, home_team, away_team, kickoff_time, source, created_at
+        FROM matches
+        WHERE match_id=?
+        LIMIT 1
+        """,
+            (match_id,),
+        )
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return {
+                "ok": False,
+                "data": None,
+                "error": {"code": "NOT_FOUND", "message": "match not found"},
+                "meta": {"mock": False, "source": "snapshot_store"},
+            }
+        league, home_team, away_team, kickoff_time, source, created_at = row
+        return {
+            "ok": True,
+            "data": {
+                "match_id": match_id,
+                "league": league,
+                "home_team": home_team,
+                "away_team": away_team,
+                "kickoff_time": kickoff_time,
+                "source": source,
+                "created_at": created_at,
+            },
+            "error": None,
+            "meta": {"mock": False, "source": "snapshot_store"},
+        }

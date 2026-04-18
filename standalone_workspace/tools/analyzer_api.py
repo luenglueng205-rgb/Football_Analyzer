@@ -138,6 +138,35 @@ class AnalyzerAPI:
         return []
 
     @staticmethod
+    def get_fixtures_normalized(date: str) -> List[Dict[str, Any]]:
+        fetcher = AnalyzerAPI._get_fetcher()
+        return fetcher.get_fixtures_normalized(date=date)
+
+    @staticmethod
+    def get_odds_normalized(
+        *,
+        league_name: str,
+        home_team: str,
+        away_team: str,
+        kickoff_time: str,
+        lottery_type: str = "JINGCAI",
+        play_type: str = "JINGCAI_WDL",
+        market: str = "WDL",
+        handicap: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        fetcher = AnalyzerAPI._get_fetcher()
+        return fetcher.get_odds_normalized(
+            league_name=league_name,
+            home_team=home_team,
+            away_team=away_team,
+            kickoff_time=kickoff_time,
+            lottery_type=lottery_type,
+            play_type=play_type,
+            market=market,
+            handicap=handicap,
+        )
+
+    @staticmethod
     def get_live_fixtures_protocol() -> Dict[str, Any]:
         try:
             url = f"{ANALYZER_API_URL}/api/v1/live/fixtures"

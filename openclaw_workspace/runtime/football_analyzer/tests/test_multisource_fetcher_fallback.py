@@ -3,9 +3,9 @@ import asyncio
 from tools.multisource_fetcher import MultiSourceFetcher
 
 
-async def test_fallback_never_crash():
+def test_fallback_never_crash():
     f = MultiSourceFetcher()
-    res = await f.fetch_odds(home_team="皇家马德里", away_team="曼城")
+    res = asyncio.run(f.fetch_odds(home_team="皇家马德里", away_team="曼城"))
     assert "ok" in res and "meta" in res
     if res["ok"]:
         assert "confidence" in res["meta"]
@@ -16,4 +16,3 @@ async def test_fallback_never_crash():
 if __name__ == "__main__":
     asyncio.run(test_fallback_never_crash())
     print("test_fallback_never_crash PASSED")
-

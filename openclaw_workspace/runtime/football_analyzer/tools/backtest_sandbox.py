@@ -68,6 +68,7 @@ class BacktestSandbox:
             "match": f"{home} vs {away}",
             "decision": ai_decision,
             "actual": true_result,
+            "odds": odds,
             "status": status,
             "profit": profit,
             "ai_confidence_home": ai_score_home

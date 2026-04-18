@@ -1,10 +1,13 @@
 import os
 import sqlite3
 import datetime
+from typing import Optional
+
+from tools.paths import data_dir
 
 class BettingLedger:
-    def __init__(self, db_path="data/ledger.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or os.path.join(data_dir(), "ledger.db")
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         self._init_db()
         

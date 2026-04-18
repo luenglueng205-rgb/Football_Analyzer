@@ -3,6 +3,10 @@ from typing import Dict, Any, List, Optional
 import mcp.types as types
 import inspect
 from tools.mcp_tools import TOOL_MAPPING
+from tools.league_profiler import get_league_persona
+from tools.intelligence_gatherer import gather_match_intelligence
+from tools.simulated_ticket import generate_simulated_ticket
+from tools.market_deep_analyzer import deep_evaluate_all_markets
 
 class ToolDefinition:
     def __init__(self, name: str, description: str, model: type[BaseModel], func: callable):
@@ -143,6 +147,13 @@ class SaveInsightArgs(BaseModel):
     insight: str = Field(..., description="高度浓缩的核心领悟，例如：切尔西主场极度依赖边路传中，中路渗透为0")
     match_id: str = Field(default="unknown")
 
+class ListClawHubToolsArgs(BaseModel):
+    pass
+
+class CallClawHubToolArgs(BaseModel):
+    tool_name: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+
 _TOOLS = [
     ToolDefinition("analyze_water_drop", "计算从初盘到临场的水位下降幅度", WaterDropArgs, TOOL_MAPPING["analyze_water_drop"]),
     ToolDefinition("get_team_stats", "获取球队历史统计数据", TeamStatsArgs, TOOL_MAPPING["get_team_stats"]),
@@ -167,18 +178,192 @@ _TOOLS = [
     ToolDefinition("analyze_dark_intel", "分析暗网情报", DarkIntelArgs, TOOL_MAPPING["analyze_dark_intel"]),
     ToolDefinition("optimize_portfolio", "优化投资组合", OptimizePortfolioArgs, TOOL_MAPPING["optimize_portfolio"]),
     ToolDefinition("retrieve_team_memory", "检索关于某支球队的长期历史记忆和核心领悟", RetrieveMemoryArgs, TOOL_MAPPING["retrieve_team_memory"]),
-    ToolDefinition("save_team_insight", "在分析结束后，将重要的战术发现或模型领悟持久化到长期记忆库", SaveInsightArgs, TOOL_MAPPING["save_team_insight"])
+    ToolDefinition("save_team_insight", "在分析结束后，将重要的战术发现或模型领悟持久化到长期记忆库", SaveInsightArgs, TOOL_MAPPING["save_team_insight"]),
+    ToolDefinition("list_clawhub_tools", "列出 ClawHub 市场工具注册表中的工具", ListClawHubToolsArgs, TOOL_MAPPING["list_clawhub_tools"]),
+    ToolDefinition("call_clawhub_tool", "调用 ClawHub 市场工具（代理到本地 call_target）", CallClawHubToolArgs, TOOL_MAPPING["call_clawhub_tool"]),
 ]
 
 REGISTRY = {t.name: t for t in _TOOLS}
 
+def export_registry() -> Dict[str, Any]:
+    tools = []
+    for t in sorted(_TOOLS, key=lambda x: x.name):
+        schema = t.model.model_json_schema()
+        if "title" in schema:
+            del schema["title"]
+        tools.append({"name": t.name, "description": t.description, "input_schema": schema})
+    return {"version": "tool_registry_v2", "tools": tools}
+
 def get_openai_tools() -> list:
-    return [t.to_openai() for t in _TOOLS]
+    tools = [t.to_openai() for t in _TOOLS]
+    
+    # 动态注册联赛画像工具
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "get_league_persona",
+            "description": "获取指定联赛的战术画像、方差特征和AI策略建议。必须在分析初期调用以确定大方向策略。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "league_name": {"type": "string", "description": "联赛名称，例如 '英超', '意甲', '荷甲', '日职联'"}
+                },
+                "required": ["league_name"]
+            }
+        }
+    })
+    
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "gather_match_intelligence",
+            "description": "全网动态感知工具。获取最新的球队伤停、天气或突发新闻，以便修正数学模型的偏差。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "team_a": {"type": "string", "description": "主队名称"},
+                    "team_b": {"type": "string", "description": "客队名称"}
+                },
+                "required": ["team_a", "team_b"]
+            }
+        }
+    })
+    
+    tools.extend([{
+        "type": "function",
+        "function": {
+            "name": "calculate_complex_parlay",
+            "description": "Calculate complex parlay combinations (M串N) and double/multiple selections (复式投注). Use this when you want to recommend a strategy involving multiple matches with combinations like 3串4, or when you want to pick multiple outcomes for a single match (e.g., picking both Win and Draw).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "matches_odds": {
+                        "type": "array",
+                        "description": "A 2D array of odds. Each inner array represents a match. For a single selection, pass [1.85]. For a double selection (复式双选), pass [1.85, 3.20]. Example for 3 matches where the first is double selection: [[1.85, 3.20], [2.10], [1.90]]",
+                        "items": {
+                            "type": "array",
+                            "items": {"type": "number"}
+                        }
+                    },
+                    "m": {
+                        "type": "integer",
+                        "description": "The number of matches in the parlay (e.g., 3 for 3串4)"
+                    },
+                    "n": {
+                        "type": "integer",
+                        "description": "The parlay type (e.g., 4 for 3串4)"
+                    },
+                    "stake_per_bet": {
+                        "type": "number",
+                        "description": "Stake per single combination bet (default 2.0)"
+                    }
+                },
+                "required": ["matches_odds", "m", "n"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_chuantong_combinations",
+            "description": "计算传统足彩（14场胜负彩、任选九场、6场半全场、4场进球彩）的复式注数与成本。当你在分析传统足彩时，如果采用了双选或全包的防冷策略，必须调用此工具计算总注数。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "match_selections": {
+                        "type": "array",
+                        "description": "选定的场次结果数列表。例如任九选了10场，其中2场双选，8场单选，则传入 [2, 2, 1, 1, 1, 1, 1, 1, 1, 1]",
+                        "items": {"type": "integer"}
+                    },
+                    "play_type": {
+                        "type": "string",
+                        "description": "玩法类型",
+                        "enum": ["14_match", "renjiu", "6_htft", "4_goals"]
+                    }
+                },
+                "required": ["match_selections", "play_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_simulated_ticket",
+            "description": "生成500彩票网风格的虚拟模拟选号单。在完成分析后，不需要物理出票时，调用此工具将结果格式化展示。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "match": {"type": "string", "description": "赛事名称，如 '曼城 vs 切尔西'"},
+                    "play_type": {"type": "string", "description": "玩法类型，如 '让球胜平负', '总进球'"},
+                    "selection": {"type": "string", "description": "具体选项，如 '主胜', '3球'"},
+                    "odds": {"type": "number", "description": "赔率 SP 值"},
+                    "stake": {"type": "number", "description": "投入本金"},
+                    "confidence": {"type": "number", "description": "AI 置信度 (0.0 - 1.0)"},
+                    "reasoning": {"type": "string", "description": "简短的策略洞察理由"},
+                    "lottery_type": {"type": "string", "description": "The type of lottery (e.g. JINGCAI, BEIDAN, ZUCAI)."}
+                },
+                "required": ["match", "play_type", "selection", "odds", "stake", "confidence", "reasoning"]
+            }
+        }
+    }])
+    
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "deep_evaluate_all_markets",
+            "description": "全智能玩法识别引擎。利用 22 万条历史数据回测当前比赛的所有玩法，计算真实的打出概率和期望值（EV）。大模型在做最终决策前必须调用此工具获取量化证据。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lottery_type": {"type": "string", "description": "当前彩种，例如 'JINGCAI', 'BEIDAN', 'ZUCAI'"},
+                    "home_team": {"type": "string", "description": "主队名称"},
+                    "away_team": {"type": "string", "description": "客队名称"},
+                    "league": {"type": "string", "description": "联赛名称"},
+                    "home_win_odds": {"type": "number", "description": "主胜赔率"},
+                    "draw_odds": {"type": "number", "description": "平局赔率"},
+                    "away_win_odds": {"type": "number", "description": "客胜赔率"}
+                },
+                "required": ["lottery_type", "home_team", "away_team", "league", "home_win_odds", "draw_odds", "away_win_odds"]
+            }
+        }
+    })
+    
+    return tools
 
 def get_mcp_tools() -> list:
     return [t.to_mcp() for t in _TOOLS]
 
 async def execute_tool(name: str, args_dict: dict) -> dict:
+    if name == "calculate_complex_parlay":
+        from tools.atomic_skills import calculate_jingcai_parlay_prize
+        odds = args_dict.get("matches_odds")
+        m = args_dict.get("m")
+        n = args_dict.get("n")
+        return calculate_jingcai_parlay_prize(odds, m, n)
+
+    if name == "calculate_chuantong_combinations":
+        from tools.parlay_rules_engine import ParlayRulesEngine
+        engine = ParlayRulesEngine()
+        selections = args_dict.get("match_selections")
+        play_type = args_dict.get("play_type")
+        try:
+            total_tickets = engine.calculate_chuantong_combinations(selections, play_type)
+            return json.dumps({"status": "success", "total_tickets": total_tickets, "total_cost": total_tickets * 2}, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
+
+    if name == "get_league_persona":
+        return get_league_persona(**args_dict)
+    
+    if name == "gather_match_intelligence":
+        return gather_match_intelligence(**args_dict)
+        
+    if name == "generate_simulated_ticket":
+        return generate_simulated_ticket(**args_dict)
+        
+    if name == "deep_evaluate_all_markets":
+        return deep_evaluate_all_markets(**args_dict)
+        
     if name not in REGISTRY:
         return {"ok": False, "error": {"code": "UNKNOWN_TOOL", "message": f"Tool {name} not found"}, "meta": {}}
         

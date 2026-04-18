@@ -17,8 +17,18 @@ from tools.parlay_filter_matrix import ParlayFilterMatrix
 from tools.qrcode_ticket_generator import generate_ticket_qr
 from tools.notification_dispatcher import dispatch_notification
 from tools.memory_manager import MemoryManager
-from skills.lottery_math_engine import LotteryMathEngine
+from tools.self_audit import self_audit
+from tools.clawhub_registry import ClawHubRegistry
 import os
+
+# 动态注入 skills 模块路径，以便导入 LotteryMathEngine
+import sys
+from pathlib import Path
+WORKSPACE_ROOT = Path(__file__).resolve().parents[4]
+STANDALONE_DIR = WORKSPACE_ROOT / "standalone_workspace"
+if str(STANDALONE_DIR) not in sys.path:
+    sys.path.insert(0, str(STANDALONE_DIR))
+from skills.lottery_math_engine import LotteryMathEngine
 
 _ledger = BettingLedger()
 _ah_analyzer = AsianHandicapAnalyzer()
@@ -84,6 +94,46 @@ def retrieve_team_memory(team_name: str, context: str = "") -> dict:
 def save_team_insight(team_name: str, insight: str, match_id: str = "unknown") -> dict:
     """在分析结束后，将重要的战术发现或模型领悟持久化到长期记忆库"""
     return _memory_manager.save_insight(team_name, insight, match_id)
+
+@ensure_protocol(mock=False, source="clawhub")
+def list_clawhub_tools() -> dict:
+    from tools.tool_registry_v2 import REGISTRY as INTERNAL_REGISTRY
+
+    try:
+        registry = ClawHubRegistry.load_from_env(existing_tool_names=set(INTERNAL_REGISTRY.keys()))
+        return {
+            "ok": True,
+            "data": {
+                "schema_version": registry.spec.schema_version,
+                "registry_path": str(registry.path) if registry.path else None,
+                "tools": registry.export_tools(),
+            },
+            "error": None,
+            "meta": {"mock": False, "source": "clawhub"},
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "data": None,
+            "error": {"code": "REGISTRY_LOAD_FAILED", "message": str(e)},
+            "meta": {"mock": False, "source": "clawhub"},
+        }
+
+@ensure_protocol(mock=False, source="clawhub")
+async def call_clawhub_tool(tool_name: str, arguments: dict) -> dict:
+    from tools.tool_registry_v2 import REGISTRY as INTERNAL_REGISTRY
+
+    try:
+        registry = ClawHubRegistry.load_from_env(existing_tool_names=set(INTERNAL_REGISTRY.keys()))
+    except Exception as e:
+        return {
+            "ok": False,
+            "data": None,
+            "error": {"code": "REGISTRY_LOAD_FAILED", "message": str(e)},
+            "meta": {"mock": False, "source": "clawhub"},
+        }
+
+    return await registry.call_tool(tool_name, arguments or {})
 
 @ensure_protocol(mock=False, source="ledger")
 def execute_bet(match_id: str, lottery_type: str, selection: str, odds: float, stake: float) -> dict:
@@ -487,6 +537,25 @@ AVAILABLE_TOOLS = [
     }
 ]
 
+@ensure_protocol(mock=False, source="math_engine")
+def calculate_complex_parlay(matches_odds: List[List[float]], m: int, n: int, stake_per_bet: float = 2.0) -> dict:
+    from tools.atomic_skills import calculate_jingcai_parlay_prize
+    res = calculate_jingcai_parlay_prize(matches_odds, m, n, stake_per_bet)
+    try:
+        return {"ok": True, "data": json.loads(res)}
+    except:
+        return {"ok": False, "error": res}
+
+@ensure_protocol(mock=False, source="math_engine")
+def calculate_chuantong_combinations(match_selections: List[int], play_type: str) -> dict:
+    from tools.parlay_rules_engine import ParlayRulesEngine
+    engine = ParlayRulesEngine()
+    try:
+        total_tickets = engine.calculate_chuantong_combinations(match_selections, play_type)
+        return {"ok": True, "data": {"total_tickets": total_tickets, "total_cost": total_tickets * 2}}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 TOOL_MAPPING = {
     "get_team_stats": get_team_stats,
     "get_live_odds": get_live_odds,
@@ -511,5 +580,10 @@ TOOL_MAPPING = {
     "generate_qr_code": generate_qr_code,
     "send_webhook_notification": send_webhook_notification,
     "retrieve_team_memory": retrieve_team_memory,
-    "save_team_insight": save_team_insight
+    "save_team_insight": save_team_insight,
+    "self_audit": self_audit,
+    "list_clawhub_tools": list_clawhub_tools,
+    "call_clawhub_tool": call_clawhub_tool,
+    "calculate_complex_parlay": calculate_complex_parlay,
+    "calculate_chuantong_combinations": calculate_chuantong_combinations,
 }

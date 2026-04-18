@@ -5,22 +5,15 @@ Odds Analyzer Tool - 增强版：集成221,415条历史数据
 """
 
 import os
-import sys
 import logging
 from typing import Dict, List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
-# 尝试导入历史数据库
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
-DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
-
 try:
-    sys.path.insert(0, os.path.join(DATA_DIR))
-    from historical_database import get_historical_database
+    from tools.historical_database import get_historical_database
     HISTORICAL_DB_AVAILABLE = True
-except ImportError:
+except Exception:
     HISTORICAL_DB_AVAILABLE = False
     get_historical_database = None
 
