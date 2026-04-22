@@ -1,83 +1,31 @@
 # Environments
 .env
-.venv/
+.venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
 
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# Logs
-logs/
-*.log
+# IDEs
+.vscode/
+.idea/
+.trae/
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Project Specific Data (HUGE FILES - DO NOT COMMIT)
+global_knowledge_base/
+standalone_workspace/data/
+standalone_workspace/datasets/
+openclaw_workspace/data/
+openclaw_workspace/datasets/
+openclaw_workspace/runtime/
 
-global_macro_quant/
-
-# Repo root local data/runtime artifacts (do not commit)
-/data/
-/COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json
-/FOOTBALL_DATA.zip
-/Football-AnalystAgent-v4.1-Native-MultiAgent-Backup.zip
-
-# Local databases / vector stores
-**/chroma_db/**
-!**/chroma_db/.gitkeep
-**/chroma.sqlite3
-**/ledger.db
-**/snapshots.db
-!**/chroma_db_part_*
-
-# Generated reports / QA outputs
-**/tests/qa_reports/**
-!**/tests/qa_reports/report.md
-!**/tests/qa_reports/.gitkeep
-
-# OpenClaw generated reports
-/openclaw_workspace/data/reports/*.md
-
-# Local runtime state (do not commit)
-**/workspace/**
-**/memory/**
-**/reports/**
-**/tickets/*.png
-**/tickets/*.jpg
-**/tickets/*.jpeg
-**/tickets/*.webp
-**/data/ingestion_checkpoint.json
-
-# Legacy ignores
-data/chinese_mapped/
-data/raw/
+# Databases
+*.sqlite3
+*.db
+*.sqlite
