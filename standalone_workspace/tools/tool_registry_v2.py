@@ -7,6 +7,11 @@ from tools.league_profiler import get_league_persona
 from tools.intelligence_gatherer import gather_match_intelligence
 from tools.simulated_ticket import generate_simulated_ticket
 from tools.market_deep_analyzer import deep_evaluate_all_markets
+from tools.global_odds_fetcher import get_global_arbitrage_data
+from skills.trap_identifier import identify_low_odds_trap
+from skills.latency_arbitrage import detect_latency_arbitrage
+from skills.betfair_anomaly import detect_betfair_anomaly
+from skills.kelly_variance_analyzer import analyze_kelly_variance
 
 class ToolDefinition:
     def __init__(self, name: str, description: str, model: type[BaseModel], func: callable):
@@ -327,6 +332,96 @@ def get_openai_tools() -> list:
             }
         }
     })
+
+    # =========================================================================
+    #  庄家思维与规则死角漏洞 (Bookmaker Mindset & Arbitrage Traps) 
+    # =========================================================================
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "get_global_arbitrage_data",
+            "description": "外围高阶数据聚合器。获取 Pinnacle (平博), Betfair (必发) 的实时赔率及全球百家博彩公司的赔率列表，用于后续计算时差套利、资金冷热和凯利方差。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "league": {"type": "string", "description": "联赛名称，如 '英超', '西甲'"},
+                    "home_team": {"type": "string", "description": "主队名称"},
+                    "away_team": {"type": "string", "description": "客队名称"}
+                },
+                "required": ["league", "home_team", "away_team"]
+            }
+        }
+    })
+    
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "identify_low_odds_trap",
+            "description": "低赔诱盘识别器 (Low Odds Trap Identifier)。专门识别竞彩中低于 1.40 的“蚊子肉”毒药选项，防止串关爆仓。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "jingcai_odds": {"type": "number", "description": "竞彩官方开出的单项赔率"},
+                    "true_prob": {"type": "number", "description": "由模型计算出的真实胜率(0.0-1.0)"},
+                    "vig": {"type": "number", "description": "返还率，默认 0.89", "default": 0.89}
+                },
+                "required": ["jingcai_odds", "true_prob"]
+            }
+        }
+    })
+    
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "detect_latency_arbitrage",
+            "description": "赔率时差套利监控器 (Latency Arbitrage Monitor)。对比竞彩与国际主流公司(如Pinnacle)的赔率，寻找竞彩反应滞后带来的绝对套利空间。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "jingcai_odds": {"type": "number", "description": "竞彩当前赔率"},
+                    "pinnacle_odds": {"type": "number", "description": "平博当前即时赔率"},
+                    "pinnacle_margin": {"type": "number", "description": "平博抽水率，默认 0.025", "default": 0.025}
+                },
+                "required": ["jingcai_odds", "pinnacle_odds"]
+            }
+        }
+    })
+    
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "detect_betfair_anomaly",
+            "description": "必发交易量异常探测器 (Betfair Volume Anomaly Detector)。对比“赔率隐含概率”与“实际成交资金比例”，识别“大热必死”和“聪明钱冷遇”。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "odds": {"type": "number", "description": "当前赔率"},
+                    "volume_percentage": {"type": "number", "description": "该选项的实际成交资金比例(0.0-1.0)"}
+                },
+                "required": ["odds", "volume_percentage"]
+            }
+        }
+    })
+    
+    tools.append({
+        "type": "function",
+        "function": {
+            "name": "analyze_kelly_variance",
+            "description": "百家赔率离散度与凯利方差分析器 (Kelly Index Variance Analyzer)。用于识别全球庄家对比赛是否存在“高度共谋(默契球/假球)”或“严重分歧”。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bookmaker_odds": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "多家博彩公司对同一结果开出的赔率列表"
+                    },
+                    "global_avg_prob": {"type": "number", "description": "可选。全球平均真实概率，不填则自动计算"}
+                },
+                "required": ["bookmaker_odds"]
+            }
+        }
+    })
     
     return tools
 
@@ -363,6 +458,21 @@ async def execute_tool(name: str, args_dict: dict) -> dict:
         
     if name == "deep_evaluate_all_markets":
         return deep_evaluate_all_markets(**args_dict)
+        
+    if name == "get_global_arbitrage_data":
+        return get_global_arbitrage_data(**args_dict)
+        
+    if name == "identify_low_odds_trap":
+        return identify_low_odds_trap(**args_dict)
+        
+    if name == "detect_latency_arbitrage":
+        return detect_latency_arbitrage(**args_dict)
+        
+    if name == "detect_betfair_anomaly":
+        return detect_betfair_anomaly(**args_dict)
+        
+    if name == "analyze_kelly_variance":
+        return analyze_kelly_variance(**args_dict)
         
     if name not in REGISTRY:
         return {"ok": False, "error": {"code": "UNKNOWN_TOOL", "message": f"Tool {name} not found"}, "meta": {}}

@@ -8,9 +8,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
 from tools.monte_carlo_simulator import run_monte_carlo_ht_ft
-from tools.environment_analyzer import get_match_environment_impact
-from tools.smart_money_tracker import check_smart_money_alerts
-from tools.player_xg_adjuster import adjust_team_xg_by_players
 from tools.bayesian_updater import get_bayesian_xg_prior
 from tools.portfolio_optimizer import optimize_multi_match_portfolio
 from tools.clv_predictor import predict_closing_line_movement

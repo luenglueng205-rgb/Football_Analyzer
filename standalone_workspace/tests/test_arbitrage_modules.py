@@ -8,6 +8,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from skills.trap_identifier import identify_low_odds_trap
 from skills.latency_arbitrage import detect_latency_arbitrage
 from skills.betfair_anomaly import detect_betfair_anomaly
+from skills.kelly_variance_analyzer import analyze_kelly_variance
+
+def test_analyze_kelly_variance():
+    # Scenario 1: High consensus (Low variance). All bookies agree Home is strong.
+    # Odds: Bet365: 1.50, Pinnacle: 1.51, William Hill: 1.49, Macauslot: 1.50
+    odds_consensus = [1.50, 1.51, 1.49, 1.50]
+    result_consensus = analyze_kelly_variance(odds_consensus)
+    
+    assert "variance" in result_consensus
+    assert result_consensus["variance"] < 0.005
+    assert result_consensus["is_consensus"] is True
+    
+    # Scenario 2: High variance (Bookies are confused or someone knows something)
+    # Odds: Bet365: 1.50, Pinnacle: 1.80, William Hill: 1.40, Macauslot: 1.90
+    odds_chaos = [1.50, 1.80, 1.40, 1.90]
+    result_chaos = analyze_kelly_variance(odds_chaos)
+    
+    assert result_chaos["variance"] > 0.01
+    assert result_chaos["is_consensus"] is False
+    assert "分歧极大" in result_chaos["analysis"]
 
 def test_detect_betfair_anomaly():
     # Betfair market: Home odds 2.0 (Implied prob 50%).

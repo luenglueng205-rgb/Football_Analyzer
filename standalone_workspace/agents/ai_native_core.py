@@ -129,11 +129,17 @@ class AINativeCoreAgent:
                                          f"5. 【情报与战意感知】：调用 gather_match_intelligence 获取突发新闻与战意考量。\n"
                                          f"6. 【历史数据 EV 引擎】：调用 deep_evaluate_all_markets 获取基于22万场历史数据的 EV。\n"
                                          f"7. 【让球整数铁律】：中国体彩常规让球永远是整数球！强队让-1刚好赢1球叫【让平】。\n"
-                                         f"=== 第三阶段：投注与仓位风控 (Betting & Bankroll Strategy) ===\n"
-                                         f"8. 【复式与双选策略】：严禁思维僵化！绝大多数情况下不要只买单选！如果发现一场比赛胜平负 EV 接近，或需要防冷门，必须采用『双选』(Double Chance)。你可以调用 `calculate_complex_parlay` 计算包含双选的复式投注总成本与最大回报，也可以调用 `calculate_chuantong_combinations` 计算足彩复式。\n"
-                                         f"9. 【严格隔离】：只从属于【{lottery_desc}】专属玩法中挑选。\n"
-                                         f"10. 【拓扑对冲与凯利风控】：利用复式投注构建对冲拓扑。计算出总注数后，结合凯利仓位给出精确的投注金额。EV为负，坚决空仓！\n"
-                                         f"11. 【模拟选号与账本入库】：调用 generate_simulated_ticket 生成模拟选号单。如果是复式，请在 selection 字段或 reasoning 中写明包含的组合注数！"}
+                                         f"=== 第三阶段：死磕庄家思维与极限套利 (Bookmaker Mindset & Arbitrage) ===\n"
+                                         f"8. 【获取外围活水】：调用 get_global_arbitrage_data 获取平博(Pinnacle)赔率、必发(Betfair)冷热数据以及百家赔率方差矩阵。如果因为没有匹配到赛事报错，则跳过后续套利步骤。\n"
+                                         f"9. 【低赔诱盘排雷】：必须调用 identify_low_odds_trap 识别低于1.40的蚊子肉选项，防止掉入庄家诱导串关的陷阱。\n"
+                                         f"10. 【时差套利扫描】：如果获取到了平博等外围赔率，调用 detect_latency_arbitrage，发现竞彩赔率大于外围去水真实赔率的绝对套利空间。\n"
+                                         f"11. 【资金冷热探测】：如果获取到了必发数据，调用 detect_betfair_anomaly 对比隐含概率与资金热度，坚决防范“大热必死”和跟随“聪明钱冷遇”。\n"
+                                         f"12. 【默契球/假球防范】：调用 analyze_kelly_variance 获取百家赔率离散度，若方差极低（共谋）或极高（分歧），需作为最高风控参考。\n"
+                                         f"=== 第四阶段：投注与仓位风控 (Betting & Bankroll Strategy) ===\n"
+                                         f"13. 【复式与双选策略】：严禁思维僵化！绝大多数情况下不要只买单选！如果发现一场比赛胜平负 EV 接近，或需要防冷门，必须采用『双选』(Double Chance)。你可以调用 `calculate_complex_parlay` 计算包含双选的复式投注总成本与最大回报，也可以调用 `calculate_chuantong_combinations` 计算足彩复式。\n"
+                                         f"14. 【严格隔离】：只从属于【{lottery_desc}】专属玩法中挑选。\n"
+                                         f"15. 【拓扑对冲与凯利风控】：利用复式投注构建对冲拓扑。计算出总注数后，结合凯利仓位给出精确的投注金额。EV为负，坚决空仓！\n"
+                                         f"16. 【模拟选号与账本入库】：调用 generate_simulated_ticket 生成模拟选号单。如果是复式，请在 selection 字段或 reasoning 中写明包含的组合注数！"}
         ]
 
         max_loops = 15  # 允许 LLM 最多进行 15 轮的连续工具调用
