@@ -1,7 +1,7 @@
 """
-OpenClaw Main Agent (Native Multi-Agent OS)
-这是在 OpenClaw 中最高权限的主代理入口。当用户向 `main` 代理发起请求时，该脚本将被调用。
-它将基于 OpenClaw 的生态系统，把任务转交给 `orchestrator`（调度中心）进行处理。
+OpenClaw Main Agent (AI-Native Edition)
+This is the highest-privilege entry point for the OpenClaw edition of the Football Analyzer.
+It relies on LLM capabilities for cognitive looping, just like the standalone AINativeCoreAgent.
 """
 
 import asyncio
@@ -20,12 +20,8 @@ SRC_DIR = WORKSPACE_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-# Import specific SubAgents from the native runtime
-from agents.orchestrator import OrchestratorAgent
-from agents.scout import ScoutAgent
-from agents.analyst import AnalystAgent
-from agents.strategist import StrategistAgent
-from agents.risk_manager import RiskManagerAgent
+# Use the LLM Brain from standalone to ensure cognitive parity
+from agents.ai_native_core import AINativeCoreAgent
 from tools.memory_manager import MemoryManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -33,60 +29,48 @@ logger = logging.getLogger("OpenClawMainAgent")
 
 class OpenClawMainAgent:
     """
-    The Main Orchestrator Gateway for OpenClaw.
+    The Supreme Agent for the OpenClaw Platform.
+    It doesn't just run static workflows; it uses the LLM Brain to autonomously
+    decide which mathematical tools to call based on the 16 Market Rules.
     """
     def __init__(self, online: bool = False):
         self.online = online
-        self.orchestrator = OrchestratorAgent()
-        
-        # Register subagents to the orchestrator's bus
-        self.orchestrator.register_agent("scout", ScoutAgent())
-        self.orchestrator.register_agent("analyst", AnalystAgent())
-        self.orchestrator.register_agent("strategist", StrategistAgent())
-        self.orchestrator.register_agent("risk_manager", RiskManagerAgent())
-        
+        self.brain = AINativeCoreAgent()
         self.memory = MemoryManager()
 
     async def analyze_and_trade(self, lottery_type: str, date_str: str) -> Dict[str, Any]:
         """
-        触发完整的分析循环
+        触发核心分析引擎
         """
-        logger.info(f"Starting analysis for {lottery_type} on {date_str} via Multi-Agent System")
+        logger.info(f"Starting analysis for {lottery_type} on {date_str}")
         
         try:
-            # 模拟用户任务，直接分发给 orchestrator
-            task = {
-                "type": "full_analysis",
-                "params": {
-                    "lottery_type": lottery_type.lower(),
-                    "lottery_desc": lottery_type,
-                    "home": "曼城", # mock
-                    "away": "阿森纳" # mock
-                }
+            state = {
+                "current_match": {"home_team": "曼城", "away_team": "阿森纳"},
+                "task": f"Please run a full EV and portfolio analysis for {lottery_type} on {date_str}.",
+                "params": {"lottery_type": lottery_type.lower(), "lottery_desc": lottery_type},
+                "messages": []
             }
-            
-            # 使用调度中心执行多智能体工作流
-            result = self.orchestrator.process(task)
+            result = await self.brain.process(state)
             return {"ok": True, "data": result}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
     async def query_intelligence(self, query: str) -> Dict[str, Any]:
-        logger.info(f"Querying intelligence via ScoutAgent: {query}")
+        logger.info(f"Querying intelligence: {query}")
         try:
-            # 单独调用 scout 智能体
-            task = {
-                "action": "gather_intelligence",
-                "params": {"query": query}
+            state = {
+                "task": f"Answer intelligence query: {query}",
+                "messages": []
             }
-            result = self.orchestrator.registered_agents["scout"].process(task)
+            result = await self.brain.process(state)
             return {"ok": True, "data": result}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="OpenClaw Main Agent (Native Multi-Agent)")
+    parser = argparse.ArgumentParser(description="OpenClaw Main Agent (AI-Native)")
     parser.add_argument("--lottery", default="JINGCAI", choices=["JINGCAI", "BEIDAN", "ZUCAI"])
     parser.add_argument("--date", default="2026-04-16", help="YYYY-MM-DD")
     parser.add_argument("--online", action="store_true")
