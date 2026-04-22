@@ -153,7 +153,9 @@ class HistoricalDatabase:
         """
         获取球队的历史统计基准 (进失球)
         """
-        matches = self.raw_data().get("data", [])
+        matches = self.raw_data.get("data", [])
+        if not matches and isinstance(self.raw_data, list):
+            matches = self.raw_data
         
         team_matches = []
         for match in matches:
