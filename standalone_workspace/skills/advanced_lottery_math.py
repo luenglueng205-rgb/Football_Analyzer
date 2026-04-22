@@ -36,9 +36,10 @@ def map_poisson_to_jingcai_scores(poisson_matrix: List[List[float]]) -> Dict[str
                     
     return jingcai_scores
 
-def calculate_parlay_kelly(legs: List[Dict[str, float]], fraction: float = 0.25) -> Dict[str, float]:
+def calculate_parlay_kelly(legs: List[Dict[str, float]], fraction: float = 0.25, lottery_type: str = "JINGCAI") -> Dict[str, float]:
     """
     计算 N 串 1 混合过关的期望值 (EV) 和凯利仓位。
+    包含北单 (BEIDAN) 浮动奖金的全局抽水修正。
     legs 格式: [{"prob": 0.6, "odds": 1.8}, ...]
     """
     if not legs:
@@ -50,6 +51,9 @@ def calculate_parlay_kelly(legs: List[Dict[str, float]], fraction: float = 0.25)
     for leg in legs:
         combined_prob *= leg["prob"]
         combined_odds *= leg["odds"]
+        
+    if lottery_type.upper() == "BEIDAN":
+        combined_odds = combined_odds * 0.65
         
     ev = (combined_prob * combined_odds) - 1.0
     
@@ -105,3 +109,77 @@ def calculate_last_leg_hedge(original_bet: float, potential_payout: float, hedge
         "guaranteed_profit": round(guaranteed_profit, 2),
         "is_profitable": guaranteed_profit > 0
     }
+
+def optimize_jingcai_ticket(num_legs: int, combined_odds: float, target_investment: float) -> Dict[str, Any]:
+    """
+    竞彩智能拆单与封顶拦截器。
+    处理法定最高奖金拦截，并检测20%偶然所得税（单注奖金>1万元）。
+    """
+    unit_bet_cost = 2.0
+    pre_tax_unit_payout = combined_odds * unit_bet_cost
+    
+    is_taxed = pre_tax_unit_payout > 10000.0
+    post_tax_odds = combined_odds * 0.8 if is_taxed else combined_odds
+    post_tax_unit_payout = post_tax_odds * unit_bet_cost
+    
+    # 法定最高奖金 (Statutory Payout Ceiling)
+    if num_legs <= 1:
+        ceiling = 100000.0 # 单关最高10万
+    elif 2 <= num_legs <= 3:
+        ceiling = 200000.0 # 2-3关最高20万
+    elif 4 <= num_legs <= 5:
+        ceiling = 500000.0 # 4-5关最高50万
+    else:
+        ceiling = 1000000.0 # 6关及以上最高100万
+        
+    # 计算单票最大倍数 (Max bets per ticket before hitting ceiling)
+    # 如果单注奖金已经超过天花板（极少见），最大倍数为1
+    max_bets_per_ticket = max(1, int(ceiling // post_tax_unit_payout))
+    max_investment_per_ticket = max_bets_per_ticket * unit_bet_cost
+    
+    target_bets = int(target_investment // unit_bet_cost)
+    suggested_tickets = max(1, (target_bets + max_bets_per_ticket - 1) // max_bets_per_ticket)
+    
+    return {
+        "is_taxed": is_taxed,
+        "pre_tax_odds": combined_odds,
+        "post_tax_odds": post_tax_odds,
+        "payout_ceiling": ceiling,
+        "max_bets_per_ticket": max_bets_per_ticket,
+        "max_investment_per_ticket": max_investment_per_ticket,
+        "suggested_tickets": suggested_tickets,
+        "warning": "触发20%偶然所得税" if is_taxed else "安全（免税）"
+    }
+
+def calculate_zucai_value_index(matches: List[Dict[str, float]]) -> List[Dict[str, Any]]:
+    """
+    传统足彩（任九/十四场）防“火锅奖”价值指数计算器。
+    通过对比泊松真实胜率(true_prob)与全国大众投注比例(public_prob)，
+    寻找被大众低估的高价值冷门盲区。
+    """
+    results = []
+    for match in matches:
+        true_prob = match.get("true_prob", 0.0)
+        public_prob = match.get("public_prob", 0.0)
+        
+        # 避免除以 0
+        if public_prob <= 0.001:
+            public_prob = 0.001
+            
+        value_index = round(true_prob / public_prob, 3)
+        
+        # 如果价值指数 > 1.2，说明真实胜率远高于大众认知，值得作为足彩防冷胆码
+        is_value_pick = value_index > 1.2
+        
+        # 信息熵辅助参考 (衡量大众分歧程度，越接近0.33分歧越大)
+        # 这里仅作简单输出
+        
+        results.append({
+            "true_prob": true_prob,
+            "public_prob": public_prob,
+            "value_index": value_index,
+            "is_value_pick": is_value_pick,
+            "warning": "严重高估（火锅预警）" if value_index < 0.6 else "正常"
+        })
+        
+    return results
