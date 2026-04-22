@@ -1,0 +1,93 @@
+{
+  "status": "success",
+  "data": {
+    "home_team": {
+      "name": "TeamA",
+      "recent_form": [
+        "W",
+        "D",
+        "W",
+        "L",
+        "W"
+      ],
+      "home_record": {
+        "played": 10,
+        "wins": 7,
+        "draws": 2,
+        "losses": 1
+      },
+      "lineup": {
+        "confirmed": false,
+        "key_missing": [],
+        "doubtful": []
+      },
+      "injuries": [
+        {
+          "title": "视觉智能体情报提炼",
+          "snippet": "Error: 'ChatOpenAI' object has no attribute 'provider'",
+          "url": "browser-use"
+        }
+      ],
+      "news": [
+        {
+          "title": "视觉智能体情报提炼",
+          "snippet": "Error: 'ChatOpenAI' object has no attribute 'provider'",
+          "url": "browser-use"
+        }
+      ]
+    },
+    "away_team": {
+      "name": "TeamB",
+      "recent_form": [
+        "W",
+        "D",
+        "W",
+        "L",
+        "W"
+      ],
+      "away_record": {
+        "played": 9,
+        "wins": 4,
+        "draws": 3,
+        "losses": 2
+      },
+      "lineup": {
+        "confirmed": false,
+        "key_missing": [],
+        "doubtful": []
+      },
+      "injuries": [
+        {
+          "title": "视觉智能体情报提炼",
+          "snippet": "Error: 'ChatOpenAI' object has no attribute 'provider'",
+          "url": "browser-use"
+        }
+      ],
+      "news": [
+        {
+          "title": "视觉智能体情报提炼",
+          "snippet": "Error: 'ChatOpenAI' object has no attribute 'provider'",
+          "url": "browser-use"
+        }
+      ]
+    },
+    "match_info": {
+      "league": "英超",
+      "league_stats": null,
+      "weather": {
+        "temperature": 15,
+        "condition": "cloudy",
+        "wind": "light"
+      },
+      "venue": {
+        "name": "主场球场",
+        "capacity": 50000,
+        "surface": "grass"
+      }
+    }
+  },
+  "confidence": 0.7,
+  "data_source": "live_mock",
+  "timestamp": "2026-04-15T20:17:53.872747",
+  "ai_report": "❌ AI 分析报告生成失败，请检查网络或 API Key。错误信息：Error code: 400 - {'error': {'message': 'Model Not Exist', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+}

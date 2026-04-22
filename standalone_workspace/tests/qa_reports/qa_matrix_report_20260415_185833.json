@@ -1,0 +1,137 @@
+{
+    "total_nodes": 96,
+    "covered_nodes": 96,
+    "coverage_percentage": 100.0,
+    "is_complete": true,
+    "missing_nodes": [],
+    "matrix_data": {
+        "JINGCAI_WDL": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "JINGCAI_HANDICAP_WDL": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "JINGCAI_CS": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "JINGCAI_GOALS": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "JINGCAI_HTFT": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "JINGCAI_MIXED_PARLAY": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "BEIDAN_WDL": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "BEIDAN_SFGG": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "BEIDAN_UP_DOWN_ODD_EVEN": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "BEIDAN_GOALS": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "BEIDAN_HTFT": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "BEIDAN_CS": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "ZUCAI_14_MATCH": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "ZUCAI_RENJIU": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "ZUCAI_6_HTFT": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        },
+        "ZUCAI_4_GOALS": {
+            "ANALYSIS": true,
+            "SELECTION": true,
+            "BETTING": true,
+            "PARLAY": true,
+            "LIVE_CHECK": true,
+            "SETTLEMENT": true
+        }
+    }
+}
