@@ -5,7 +5,27 @@ from pathlib import Path
 # Add standalone_workspace to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from skills.advanced_lottery_math import map_poisson_to_jingcai_scores, calculate_parlay_kelly, calculate_last_leg_hedge, optimize_jingcai_ticket, calculate_zucai_value_index
+from skills.advanced_lottery_math import map_poisson_to_jingcai_scores, calculate_parlay_kelly, calculate_last_leg_hedge, optimize_jingcai_ticket, calculate_zucai_value_index, calculate_beidan_sxds_matrix
+
+def test_calculate_beidan_sxds_matrix():
+    # Create a dummy 5x5 poisson matrix
+    matrix = [[0.0 for _ in range(5)] for _ in range(5)]
+    
+    # 0:0 -> 0 goals (Under), Even -> 下双
+    matrix[0][0] = 0.1
+    # 1:0 -> 1 goal (Under), Odd -> 下单
+    matrix[1][0] = 0.2
+    # 2:1 -> 3 goals (Over), Odd -> 上单
+    matrix[2][1] = 0.3
+    # 2:2 -> 4 goals (Over), Even -> 上双
+    matrix[2][2] = 0.4
+    
+    result = calculate_beidan_sxds_matrix(matrix)
+    
+    assert abs(result["下双"] - 0.1) < 0.001
+    assert abs(result["下单"] - 0.2) < 0.001
+    assert abs(result["上单"] - 0.3) < 0.001
+    assert abs(result["上双"] - 0.4) < 0.001
 
 def test_optimize_jingcai_ticket():
     # 4-leg parlay, combined odds 6000.0, target investment 10,000 RMB (5000 bets)

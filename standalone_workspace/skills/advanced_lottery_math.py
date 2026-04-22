@@ -183,3 +183,43 @@ def calculate_zucai_value_index(matches: List[Dict[str, float]]) -> List[Dict[st
         })
         
     return results
+
+def calculate_beidan_sxds_matrix(poisson_matrix: List[List[float]]) -> Dict[str, float]:
+    """
+    计算北京单场专属玩法：上下盘单双 (SXDS)。
+    上盘: 总进球 >= 3; 下盘: 总进球 < 3
+    单双: 总进球数的奇偶
+    """
+    sxds = {
+        "上单": 0.0,
+        "上双": 0.0,
+        "下单": 0.0,
+        "下双": 0.0
+    }
+    
+    max_goals = len(poisson_matrix)
+    for h in range(max_goals):
+        for a in range(max_goals):
+            prob = poisson_matrix[h][a]
+            if prob == 0: continue
+            
+            total_goals = h + a
+            is_over = total_goals >= 3
+            is_even = total_goals % 2 == 0
+            
+            if is_over and not is_even:
+                sxds["上单"] += prob
+            elif is_over and is_even:
+                sxds["上双"] += prob
+            elif not is_over and not is_even:
+                sxds["下单"] += prob
+            elif not is_over and is_even:
+                sxds["下双"] += prob
+                
+    # Normalize in case of rounding errors, though it should sum to 1.0 if matrix is full
+    total = sum(sxds.values())
+    if total > 0:
+        for k in sxds:
+            sxds[k] = round(sxds[k] / total, 4)
+            
+    return sxds
