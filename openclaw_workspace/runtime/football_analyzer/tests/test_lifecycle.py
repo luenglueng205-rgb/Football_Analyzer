@@ -9,6 +9,24 @@ from tools.settlement_engine import SettlementEngine
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 
+def test_complex_live_hedging():
+    monitor = LiveMatchMonitor()
+    
+    # 初盘买了比分 1-0
+    monitor.register_live_bet("M1", "CS_1-0", 100, 7.0)
+    
+    # 走地80分钟，比分已经是 1-0，需要对冲剩下的所有可能（其他比分）
+    live_markets = {
+        "CS_1-1": 15.0,
+        "CS_2-0": 12.0,
+        "CS_OTHER": 20.0
+    }
+    
+    result = monitor.evaluate_complex_hedge("M1", live_markets, 80)
+    
+    assert result["hedge_recommended"] is True
+    assert "hedge_distribution" in result
+
 def run_tests():
     print("\n--- Testing Pre-Match Sentinel (T-30 Lineups) ---")
     sentinel = PreMatchSentinel()

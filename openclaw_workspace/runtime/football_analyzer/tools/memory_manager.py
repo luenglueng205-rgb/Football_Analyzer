@@ -2,15 +2,12 @@ import os
 import chromadb
 from chromadb.utils import embedding_functions
 from typing import List, Dict, Any
-from chromadb.config import Settings
-import logging
-from datetime import datetime
+
 from tools.paths import data_dir
+
 import hashlib
 import math
 import re
-
-logger = logging.getLogger(__name__)
 
 
 class _EmbeddingFunctionAdapter:
@@ -180,16 +177,18 @@ class MemoryManager:
 
     def save_insight(self, team_name: str, insight_text: str, match_id: str, confidence: float = 0.8) -> dict:
         """
-        保存一条领悟到长期记忆库
+        [修改版] 存入记忆时强制打上时间戳
         """
+        from datetime import datetime
         try:
+            today_str = datetime.now().strftime("%Y-%m-%d")
             # 使用时间戳或随机数确保 ID 唯一，这里简单用 team + match_id
             import time
             doc_id = f"{team_name}_{match_id}_{int(time.time())}"
             
             self.collection.add(
                 documents=[insight_text],
-                metadatas=[{"team": team_name, "match_id": match_id, "confidence": confidence}],
+                metadatas=[{"team": team_name, "match_id": match_id, "confidence": confidence, "date": today_str}],
                 ids=[doc_id]
             )
             return {"ok": True, "message": f"Insight for {team_name} saved successfully.", "doc_id": doc_id}
@@ -217,30 +216,45 @@ class MemoryManager:
             return {"ok": True, "doc_id": doc_id}
         except Exception as e:
             return {"ok": False, "error": str(e)}
-    def retrieve_memory(self, team_name: str, query_context: str = "", limit: int = 5) -> dict:
+    def retrieve_memory(self, team_name: str, query_context: str = "", limit: int = 5, decay_days: int = 365) -> dict:
         """
         检索关于某支球队的历史记忆
         如果提供了 query_context，会基于语义进行相似度检索；否则只按 metadata 过滤。
+        【新增机制】：记忆衰减与遗忘机制 (Memory Decay)。过滤掉超过 decay_days 的陈旧记忆，防止过时战术污染上下文。
         """
         try:
             query_text = query_context if query_context else f"{team_name} 的战术特点和近期表现"
             
+            # 计算衰减阈值的时间戳
+            from datetime import datetime, timedelta
+            cutoff_date = (datetime.now() - timedelta(days=decay_days)).strftime("%Y-%m-%d")
+            
             results = self.collection.query(
                 query_texts=[query_text],
                 n_results=limit,
-                where={"team": team_name} # 严格过滤该球队
+                where={
+                    "$and": [
+                        {"team": {"$eq": team_name}},
+                        {"date": {"$gte": cutoff_date}} # 遗忘机制：只召回 cutoff_date 之后的记忆
+                    ]
+                }
             )
             
-            if not results["documents"] or not results["documents"][0]:
+            if not results.get("documents") or not results["documents"][0]:
+                # 尝试不带时间过滤，看是否有历史数据（如果有，说明被遗忘了）
+                fallback = self.collection.query(query_texts=[query_text], n_results=1, where={"team": team_name})
+                if fallback.get("documents") and fallback["documents"][0]:
+                    return {"ok": True, "data": [], "message": f"找到了 {team_name} 的记忆，但因超过 {decay_days} 天已被系统自动遗忘。"}
                 return {"ok": True, "data": [], "message": f"No memory found for {team_name}."}
                 
             memories = []
             for i, doc in enumerate(results["documents"][0]):
-                meta = results["metadatas"][0][i]
+                meta = results["metadatas"][0][i] if results.get("metadatas") and results["metadatas"][0] else {}
                 memories.append({
                     "insight": doc,
                     "match_id": meta.get("match_id"),
-                    "confidence": meta.get("confidence")
+                    "confidence": meta.get("confidence"),
+                    "date": meta.get("date", "unknown")
                 })
                 
             return {"ok": True, "data": memories}
@@ -288,5 +302,59 @@ class MemoryManager:
                 meta = metas[i] if i < len(metas) else {}
                 out.append({"insight": doc, "metadata": meta})
             return {"ok": True, "data": out}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def add_historical_matches_batch(self, matches: list) -> dict:
+        """
+        批量导入结构化的历史比赛数据，不经过昂贵的语义嵌入。
+        供数据灌入脚本使用，建立 22 万场的庞大记忆库。
+        """
+        try:
+            documents = []
+            metadatas = []
+            ids = []
+            
+            for m in matches:
+                home_goals = int(m.get("home_goals", 0))
+                away_goals = int(m.get("away_goals", 0))
+                total_goals = home_goals + away_goals
+                
+                # 提取赛果特征标签
+                if home_goals > away_goals:
+                    result_tag = "主胜"
+                    if home_goals - away_goals == 1:
+                        result_tag += ", 净胜1球(让平)"
+                elif home_goals < away_goals:
+                    result_tag = "客胜"
+                else:
+                    result_tag = "平局"
+                    
+                over_tag = "大球(>2.5)" if total_goals > 2.5 else "小球(<2.5)"
+                
+                doc_text = f"{m['league']} | {m['date']} | {m['home_team']} {m['home_goals']}-{m['away_goals']} {m['away_team']} | 标签: {result_tag}, {over_tag}"
+                
+                documents.append(doc_text)
+                
+                metadatas.append({
+                    "type": "historical_match",
+                    "league": m.get("league", "UNK"),
+                    "home_odds": float(m.get("home_odds", 1.0)),
+                    "draw_odds": float(m.get("draw_odds", 1.0)),
+                    "away_odds": float(m.get("away_odds", 1.0)),
+                    "home_goals": home_goals,
+                    "away_goals": away_goals,
+                    "date": m.get("date", "1970-01-01")
+                })
+                
+                # 唯一 ID
+                ids.append(f"hist_{m.get('league')}_{m.get('date')}_{m.get('home_team')}_{m.get('away_team')}")
+
+            self.collection.add(
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+            return {"ok": True, "count": len(matches)}
         except Exception as e:
             return {"ok": False, "error": str(e)}

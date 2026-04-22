@@ -253,22 +253,61 @@ def calculate_traditional_rx9_cost(dan_matches: int, tuo_matches: int) -> str:
         return json.dumps({"error": f"任九计算失败: {str(e)}"}, ensure_ascii=False)
 
 
-def calculate_jingcai_parlay_prize(matches_odds: List[List[float]], m: int, n: int) -> str:
+def calculate_jingcai_parlay_prize(matches_odds: List[List[float]], m: int, n: int, stake_per_bet: float = 2.0) -> str:
     """
-    [工具4] 中国体彩竞彩足球 M串N 真实奖金计算器。
-    当你想为用户生成一个串关方案(如 3串4, 4串11)，并想知道需要多少成本、最高能中多少钱、错一场能保本多少钱时，调用此工具。
+    [工具4] 竞彩 M串N 过关玩法奖金与成本计算器。
+    当你需要提供具体的串关投注方案并计算其成本和预期最大奖金时，调用此工具。
     
-    :param matches_odds: 一个二维数组，代表每场比赛你选择的赔率。例如选了3场单选：[[2.15], [3.10], [1.85]]；如果某场双选防平：[[2.15, 3.20], [3.10], [1.85]]
-    :param m: 串关场数 (例如 3串4 中的 3)
-    :param n: 串关类型 (例如 3串4 中的 4)
-    :return: 包含注数、成本、最低奖金、最高奖金的 JSON 字符串 (严格执行体彩四舍五入与交税规则)
+    :param matches_odds: 每场比赛赔率的列表。每场比赛可以有多个赔率（复式/双选），如 [[1.5, 3.2], [2.1], [1.8]]
+    :param m: 比赛总场数 M
+    :param n: 串关数 N (例如 3场比赛组成2串1，则 m=3, n=2)
+    :param stake_per_bet: 每注金额，默认为 2.0
+    :return: 包含组合数、注数、总成本和最大潜在奖金的 JSON 字符串
     """
-    try:
-        formatted_matches = [{"odds": odds_list, "play_type": "SPF"} for odds_list in matches_odds]
-        res = math_engine.calculate_jingcai_mxn(formatted_matches, m, n)
-        return json.dumps(res, ensure_ascii=False)
-    except Exception as e:
-        return json.dumps({"error": f"串关计算失败: {str(e)}"}, ensure_ascii=False)
+    import itertools
+    import math
+
+    if not matches_odds or m > len(matches_odds) or m < n:
+        return json.dumps({"error": "Invalid parameters"})
+
+    # 对于每一场比赛，提取最大的那个赔率作为最大奖金测算的基础
+    max_odds_per_match = [max(odds) if isinstance(odds, list) else odds for odds in matches_odds]
+    
+    # 组合计算：C(m, n) 种组合
+    combinations = list(itertools.combinations(max_odds_per_match[:m], n))
+    
+    # 基础单选组合数 (不考虑单场多选的情况)
+    base_combos = len(combinations)
+    
+    # 计算复式乘数：每场比赛选了几个结果
+    selection_counts = [len(odds) if isinstance(odds, list) else 1 for odds in matches_odds[:m]]
+    total_tickets = 0
+    
+    # 真实的复式注数计算：对于每一种 n 串关的组合，其注数等于包含的各场比赛选项数的乘积
+    idx_combinations = list(itertools.combinations(range(m), n))
+    for combo_indices in idx_combinations:
+        combo_tickets = 1
+        for idx in combo_indices:
+            combo_tickets *= selection_counts[idx]
+        total_tickets += combo_tickets
+
+    max_prize = 0.0
+    for combo in combinations:
+        prize = stake_per_bet
+        for odds in combo:
+            prize *= odds
+        max_prize += prize
+
+    total_cost = total_tickets * stake_per_bet
+    
+    return json.dumps({
+        "parlay_type": f"{m}串{n}",
+        "base_combinations": base_combos,
+        "actual_total_tickets": total_tickets,
+        "total_cost": total_cost,
+        "max_potential_prize": round(max_prize, 2),
+        "max_roi": f"{(max_prize / total_cost) - 1:.2%}" if total_cost > 0 else "0.0%"
+    }, ensure_ascii=False)
 
 def generate_visual_chart(chart_type: str, chart_data: List[Dict], title: str, axis_x_title: str = "", axis_y_title: str = "") -> str:
     """
@@ -338,12 +377,9 @@ def get_team_baseline_stats(team_name: str) -> str:
     :return: 包含真实场均进失球的 JSON 字符串
     """
     try:
-        # 实际应从 db.get_team_stats(team_name) 获取
-        return json.dumps({
-            "team": team_name,
-            "baseline_mu_scored": 1.45,
-            "baseline_mu_conceded": 1.10,
-            "message": "请在此基准(进球1.45, 失球1.10)上，根据最新伤停新闻进行微调(+-0.2)。"
-        }, ensure_ascii=False)
+        from data.historical_database import get_historical_database
+        db = get_historical_database(lazy_load=True)
+        stats = db.get_team_stats(team_name, recent_n=10)
+        return json.dumps(stats, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)

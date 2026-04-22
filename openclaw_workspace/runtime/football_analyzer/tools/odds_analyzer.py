@@ -5,15 +5,24 @@ Odds Analyzer Tool - 增强版：集成221,415条历史数据
 """
 
 import os
+import sys
 import logging
 from typing import Dict, List, Tuple, Optional
 
+from core.recommendation_schema import RecommendationSchemaAdapter
+
 logger = logging.getLogger(__name__)
 
+# 尝试导入历史数据库
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+
 try:
-    from tools.historical_database import get_historical_database
+    sys.path.insert(0, os.path.join(DATA_DIR))
+    from historical_database import get_historical_database
     HISTORICAL_DB_AVAILABLE = True
-except Exception:
+except ImportError:
     HISTORICAL_DB_AVAILABLE = False
     get_historical_database = None
 
@@ -42,8 +51,14 @@ class OddsAnalyzer:
             except Exception as e:
                 logger.warning(f"历史数据库加载失败: {e}")
     
-    def analyze(self, odds: Dict[str, float], league: str = None, 
-                calibrate: bool = True) -> Dict:
+    def analyze(
+        self,
+        odds: Dict[str, float],
+        league: str = None,
+        calibrate: bool = True,
+        *,
+        memories: Optional[List[Dict]] = None,
+    ) -> Dict:
         """
         分析赔率（增强版：支持历史数据校准）
         
@@ -95,7 +110,7 @@ class OddsAnalyzer:
             except:
                 pass
         
-        return {
+        result = {
             "input_odds": odds,
             "implied_probabilities": calibrated_prob,
             "fair_odds": fair_odds,
@@ -105,6 +120,13 @@ class OddsAnalyzer:
             "calibration_info": calibration_info,
             "recommendation": self._generate_recommendation(value_analysis, league_stats)
         }
+
+        if isinstance(memories, list) and memories:
+            result["memory_context"] = list(memories)
+        result["recommendation_schema"] = RecommendationSchemaAdapter.from_odds_analyzer_output(
+            result, memories=memories
+        ).to_dict()
+        return result
     
     def _calibrate_with_historical(self, implied_prob: Dict, league: str) -> Tuple[Dict, Dict]:
         """

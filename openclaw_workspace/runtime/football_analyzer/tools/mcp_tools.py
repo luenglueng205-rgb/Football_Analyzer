@@ -17,18 +17,9 @@ from tools.parlay_filter_matrix import ParlayFilterMatrix
 from tools.qrcode_ticket_generator import generate_ticket_qr
 from tools.notification_dispatcher import dispatch_notification
 from tools.memory_manager import MemoryManager
-from tools.self_audit import self_audit
 from tools.clawhub_registry import ClawHubRegistry
-import os
-
-# 动态注入 skills 模块路径，以便导入 LotteryMathEngine
-import sys
-from pathlib import Path
-WORKSPACE_ROOT = Path(__file__).resolve().parents[4]
-STANDALONE_DIR = WORKSPACE_ROOT / "standalone_workspace"
-if str(STANDALONE_DIR) not in sys.path:
-    sys.path.insert(0, str(STANDALONE_DIR))
 from skills.lottery_math_engine import LotteryMathEngine
+import os
 
 _ledger = BettingLedger()
 _ah_analyzer = AsianHandicapAnalyzer()
@@ -181,25 +172,46 @@ def get_live_news(team_name: str, limit: int = 5) -> Dict[str, Any]:
 def get_today_fixtures(date: str, lottery_type: str) -> Dict[str, Any]:
     return AnalyzerAPI.get_live_fixtures_protocol()
 
+from tools.multisource_fetcher import MultiSourceFetcher
+
 @ensure_protocol(mock=False, source="scores")
 def get_match_result(match_id: str) -> Dict[str, Any]:
-    return {
-        "ok": False,
-        "data": None,
-        "error": {"code": "NOT_IMPLEMENTED", "message": "scores provider not enabled yet"},
-        "meta": {"mock": False, "source": "scores", "confidence": 0.0, "stale": True},
-    }
+    """
+    通过模糊匹配 match_id（例如：主队vs客队 或 球队名）查询历史数据库中的比赛结果。
+    """
+    from data.historical_database import get_historical_database
+    db = get_historical_database(lazy_load=True)
+    matches = db.raw_data().get("data", [])
+    
+    found = []
+    for match in matches:
+        home = match.get("home_team", "")
+        away = match.get("away_team", "")
+        if match_id in home or match_id in away or match_id in f"{home}vs{away}":
+            found.append({
+                "date": match.get("date"),
+                "home": home,
+                "away": away,
+                "home_score": match.get("home_score"),
+                "away_score": match.get("away_score"),
+                "league": match.get("league")
+            })
+            if len(found) >= 5: # 返回最近5条匹配
+                break
+    
+    if found:
+        return {"results": found}
+    return {"message": "No match result found for this query in historical DB."}
 
 @ensure_protocol(mock=False, source="news_search")
 def search_news(query: str) -> Dict[str, Any]:
-    return {
-        "ok": False,
-        "data": None,
-        "error": {"code": "NOT_IMPLEMENTED", "message": "news search provider not enabled yet"},
-        "meta": {"mock": False, "source": "news_search", "confidence": 0.0, "stale": True},
-    }
+    """
+    调用无头浏览器实时搜索懂球帝新闻。
+    """
+    fetcher = MultiSourceFetcher()
+    return fetcher.fetch_news_sync(query)
 
-@ensure_protocol(mock=True, source="beidan_scraper")
+@ensure_protocol(mock=False, source="beidan_scraper")
 async def scrape_beidan_sp(home_team: str, away_team: str) -> Dict:
     """
     (MCP Browser Tool) 使用无头浏览器提取北京单场 (北单) 的实时让球数和 SP 值。
@@ -258,7 +270,7 @@ def detect_smart_money(opening_odds: Dict[str, float], live_odds: Dict[str, floa
     """
     return SmartMoneyTracker.detect_sharp_money(opening_odds, live_odds)
 
-@ensure_protocol(mock=True, source="vision_odds")
+@ensure_protocol(mock=False, source="vision_odds")
 async def capture_and_analyze_trend(home_team: str, away_team: str) -> Dict:
     """
     (Vision Tool) 命令 MCP Browser 截取赔率走势图和必发交易量柱状图，
@@ -273,7 +285,7 @@ def run_monte_carlo_simulation(home_xg: float, away_xg: float) -> Dict[str, Any]
     sim = MonteCarloSimulator(simulations=100000)
     return sim.simulate_match(home_xg, away_xg)
 
-@ensure_protocol(mock=True, source="dark_intel")
+@ensure_protocol(mock=False, source="dark_intel")
 async def analyze_dark_intel(team_name: str, raw_social_text: str) -> Dict[str, Any]:
     """(Intel Tool) 分析球队的暗网情报/社交媒体生肉情绪，转化为 xG 修正因子。"""
     extractor = DarkIntelExtractor()
@@ -537,25 +549,6 @@ AVAILABLE_TOOLS = [
     }
 ]
 
-@ensure_protocol(mock=False, source="math_engine")
-def calculate_complex_parlay(matches_odds: List[List[float]], m: int, n: int, stake_per_bet: float = 2.0) -> dict:
-    from tools.atomic_skills import calculate_jingcai_parlay_prize
-    res = calculate_jingcai_parlay_prize(matches_odds, m, n, stake_per_bet)
-    try:
-        return {"ok": True, "data": json.loads(res)}
-    except:
-        return {"ok": False, "error": res}
-
-@ensure_protocol(mock=False, source="math_engine")
-def calculate_chuantong_combinations(match_selections: List[int], play_type: str) -> dict:
-    from tools.parlay_rules_engine import ParlayRulesEngine
-    engine = ParlayRulesEngine()
-    try:
-        total_tickets = engine.calculate_chuantong_combinations(match_selections, play_type)
-        return {"ok": True, "data": {"total_tickets": total_tickets, "total_cost": total_tickets * 2}}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
 TOOL_MAPPING = {
     "get_team_stats": get_team_stats,
     "get_live_odds": get_live_odds,
@@ -581,9 +574,6 @@ TOOL_MAPPING = {
     "send_webhook_notification": send_webhook_notification,
     "retrieve_team_memory": retrieve_team_memory,
     "save_team_insight": save_team_insight,
-    "self_audit": self_audit,
     "list_clawhub_tools": list_clawhub_tools,
     "call_clawhub_tool": call_clawhub_tool,
-    "calculate_complex_parlay": calculate_complex_parlay,
-    "calculate_chuantong_combinations": calculate_chuantong_combinations,
 }

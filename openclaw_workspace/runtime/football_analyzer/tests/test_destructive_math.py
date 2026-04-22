@@ -21,3 +21,20 @@ def test_extreme_xg_values():
     # 测试 3: 极大 xG（如 20.0，测试计算性能和内存是否溢出，概率是否收敛）
     markets_huge = engine.calculate_all_markets(20.0, 1.0)
     assert markets_huge["match_prob"]["Win"] > 0.99
+
+def test_universal_16_play_settlement():
+    from tools.settlement_engine import SettlementEngine
+    engine = SettlementEngine()
+    
+    # HT 0-1, FT 2-1
+    result = engine.determine_all_play_types_results("2-1", "0-1", {"JINGCAI_HANDICAP": -1, "BEIDAN_HANDICAP": -0.5})
+    
+    assert result["status"] == "SETTLED"
+    assert result["WDL"] == "3"
+    assert result["JINGCAI_HANDICAP_WDL"] == "1" # 2 - 1 - 1 = 0 (Draw)
+    assert result["BEIDAN_HANDICAP_WDL"] == "3" # 2 - 0.5 = 1.5 > 1 (Win)
+    assert result["GOALS"] == "3"
+    assert result["CS"] == "2-1"
+    assert result["HTFT"] == "0-3"
+    assert result["UP_DOWN_ODD_EVEN"] == "UP_ODD" # 3 goals (>=3 is UP), Odd
+

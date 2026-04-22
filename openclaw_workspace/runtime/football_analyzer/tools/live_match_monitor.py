@@ -62,3 +62,52 @@ class LiveMatchMonitor:
             "roi": round(roi, 3),
             "recommended_action": action
         }
+
+    def evaluate_complex_hedge(self, match_id: str, live_markets: dict, current_minute: int) -> dict:
+        """
+        支持多盘口的联合对冲计算器。计算如何分配本金买断剩余所有可能性以锁定利润。
+        """
+        if match_id not in self.active_bets:
+            return {"hedge_recommended": False, "reason": "No active bet found"}
+            
+        bet = self.active_bets[match_id]
+        potential_return = bet["stake"] * bet["odds"]
+        
+        # Calculate sum of inverse odds for all remaining live markets
+        # IF sum(1/odds) < 1, an arbitrage (hedge) opportunity exists
+        implied_prob_sum = sum(1.0 / odds for odds in live_markets.values())
+        
+        if implied_prob_sum == 0:
+            return {"hedge_recommended": False, "reason": "No valid live markets provided"}
+            
+        # We need to guarantee a payout of `target_payout` regardless of outcome
+        # For each market: hedge_stake * odds = target_payout
+        # Total hedge investment = sum(target_payout / odds) = target_payout * implied_prob_sum
+        # We want: potential_return - Total hedge investment > 0
+        # Let's set target_payout = potential_return to perfectly flatten the risk
+        
+        total_hedge_investment = potential_return * implied_prob_sum
+        
+        if total_hedge_investment < potential_return - bet["stake"]:
+            # Profitable hedge
+            hedge_distribution = {
+                market: round(potential_return / odds, 2)
+                for market, odds in live_markets.items()
+            }
+            guaranteed_profit = potential_return - total_hedge_investment - bet["stake"]
+            
+            return {
+                "hedge_recommended": True,
+                "current_minute": current_minute,
+                "total_hedge_cost": round(total_hedge_investment, 2),
+                "guaranteed_net_profit": round(guaranteed_profit, 2),
+                "hedge_distribution": hedge_distribution
+            }
+            
+        return {
+            "hedge_recommended": False,
+            "reason": "Hedge cost too high, no guaranteed profit",
+            "cost": round(total_hedge_investment, 2),
+            "potential_return": potential_return
+        }
+

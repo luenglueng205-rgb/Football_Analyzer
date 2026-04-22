@@ -1,31 +1,10 @@
-import asyncio
 import json
-import os
-import sys
+
+from scripts import self_audit_cli
 
 
-SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
-
-from mcp_server import handle_request
-
-
-def _call_tool(name: str, arguments: dict):
-    req = {"method": "call_tool", "params": {"name": name, "arguments": arguments}}
-    return asyncio.run(handle_request(req))
-
-
-def _extract_json_payload(resp):
-    assert "result" in resp
-    assert isinstance(resp["result"], list)
-    assert resp["result"]
-    text = resp["result"][0]["text"]
-    return json.loads(text)
-
-
-def test_openclaw_self_audit_drift_bloat_diagnosis_has_expected_keys_and_lists():
-    payload = _extract_json_payload(_call_tool("self_audit", {}))
+def test_self_audit_drift_bloat_diagnosis_has_expected_keys_and_lists():
+    payload = self_audit_cli.collect_self_audit(offline=True)
     diag = payload["drift_diagnosis"]
 
     assert diag["schema_version"] == "1.0"
@@ -45,4 +24,6 @@ def test_openclaw_self_audit_drift_bloat_diagnosis_has_expected_keys_and_lists()
 
     assert isinstance(diag["slimming_plan"], list)
     assert diag["slimming_plan"]
+
+    json.dumps(payload, ensure_ascii=False)
 

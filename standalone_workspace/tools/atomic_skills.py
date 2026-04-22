@@ -377,12 +377,9 @@ def get_team_baseline_stats(team_name: str) -> str:
     :return: 包含真实场均进失球的 JSON 字符串
     """
     try:
-        # 实际应从 db.get_team_stats(team_name) 获取
-        return json.dumps({
-            "team": team_name,
-            "baseline_mu_scored": 1.45,
-            "baseline_mu_conceded": 1.10,
-            "message": "请在此基准(进球1.45, 失球1.10)上，根据最新伤停新闻进行微调(+-0.2)。"
-        }, ensure_ascii=False)
+        from data.historical_database import get_historical_database
+        db = get_historical_database(lazy_load=True)
+        stats = db.get_team_stats(team_name, recent_n=10)
+        return json.dumps(stats, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)

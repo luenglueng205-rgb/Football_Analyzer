@@ -17,54 +17,94 @@ class SettlementEngine:
             "postponed_hours_limit": 36 # If postponed > 36h, void
         }
 
-    def determine_match_result(self, ft_score: str, aet_score: str = None, status: str = "FINISHED") -> dict:
+    def determine_all_play_types_results(self, ft_score: str, ht_score: str = None, handicaps: dict = None, status: str = "FINISHED") -> dict:
         """
-        Determines the official betting result based on the 90-minute rule.
+        根据 90分钟比分 一次性生成 16 种玩法的所有正确选项。隔离加时赛。
         """
-        if status.upper() in ["CANCELLED", "POSTPONED", "ABANDONED"]:
-            logger.warning(f"🚨 MATCH {status}: Settlement odds reset to 1.0 per official rules.")
-            return {
-                "status": "VOID",
-                "official_result": "REFUND",
-                "odds_applied": 1.0
-            }
-            
-        if not ft_score or ft_score.upper() in ["W/O", "AWARDED"]:
-            logger.warning(f"🚨 MATCH STATUS ABNORMAL (Score: {ft_score}). Voiding per rules.")
-            return {
-                "status": "VOID",
-                "official_result": "REFUND",
-                "odds_applied": 1.0
-            }
+        if status.upper() in ["CANCELLED", "POSTPONED", "ABANDONED"] or not ft_score or ft_score.upper() in ["W/O", "AWARDED"]:
+            return {"status": "VOID", "official_result": "REFUND", "odds_applied": 1.0}
             
         try:
             home_goals, away_goals = map(int, ft_score.split("-"))
+            total_goals = home_goals + away_goals
         except ValueError:
-            logger.error(f"🚨 MATCH SCORE MALFORMED ({ft_score}). Voiding per rules.")
-            return {
-                "status": "VOID",
-                "official_result": "REFUND",
-                "odds_applied": 1.0
-            }
+            return {"status": "VOID", "official_result": "REFUND", "odds_applied": 1.0}
+
+        wdl = "3" if home_goals > away_goals else "1" if home_goals == away_goals else "0"
+        goals = str(min(total_goals, 7))
+        cs = f"{home_goals}-{away_goals}"
+        odd_even = "ODD" if total_goals % 2 != 0 else "EVEN"
         
-        # Determine 1X2
-        if home_goals > away_goals:
-            wdl = "3" # Home Win
-        elif home_goals == away_goals:
-            wdl = "1" # Draw
-        else:
-            wdl = "0" # Away Win
+        handicaps = handicaps if isinstance(handicaps, dict) else {}
+        jc_h = handicaps.get("JINGCAI_HANDICAP", 0)
+        bd_h = handicaps.get("BEIDAN_HANDICAP", 0)
+        try:
+            jc_h_f = float(jc_h)
+        except Exception:
+            jc_h_f = 0.0
+        try:
+            bd_h_f = float(bd_h)
+        except Exception:
+            bd_h_f = 0.0
+
+        adjusted_home_jc = float(home_goals) + jc_h_f
+        adjusted_home_bd = float(home_goals) + bd_h_f
+        jingcai_handicap_wdl = "3" if adjusted_home_jc > float(away_goals) else "1" if adjusted_home_jc == float(away_goals) else "0"
+        beidan_handicap_wdl = "3" if adjusted_home_bd > float(away_goals) else "1" if adjusted_home_bd == float(away_goals) else "0"
             
-        if aet_score:
-            logger.info(f"Extra time played ({aet_score}), but settlement strictly uses 90-min score ({ft_score}).")
-            
-        return {
+        htft = None
+        if ht_score:
+            try:
+                ht_home, ht_away = map(int, str(ht_score).split("-"))
+                ht_res = "3" if ht_home > ht_away else "1" if ht_home == ht_away else "0"
+                htft = f"{ht_res}-{wdl}"
+            except Exception:
+                htft = None
+                
+        up_down = "UP" if total_goals >= 3 else "DOWN"
+        up_down_odd_even = f"{up_down}_{odd_even}"
+
+        results = {
             "status": "SETTLED",
-            "official_result": wdl,
             "ft_score": ft_score,
-            "aet_score_ignored": aet_score,
-            "odds_applied": "market_odds"
+            "ht_score": ht_score,
+            "WDL": wdl,
+            "GOALS": goals,
+            "CS": cs,
+            "ODD_EVEN": odd_even,
+            "UP_DOWN_ODD_EVEN": up_down_odd_even,
+            "JINGCAI_HANDICAP_WDL": jingcai_handicap_wdl,
+            "BEIDAN_HANDICAP_WDL": beidan_handicap_wdl,
+            "HTFT": htft,
         }
+
+        results.update(
+            {
+                "JINGCAI_WDL": wdl,
+                "JINGCAI_GOALS": goals,
+                "JINGCAI_CS": cs,
+                "JINGCAI_HTFT": htft,
+                "JINGCAI_MIXED_PARLAY": {
+                    "WDL": wdl,
+                    "JINGCAI_HANDICAP_WDL": jingcai_handicap_wdl,
+                    "GOALS": goals,
+                    "CS": cs,
+                    "HTFT": htft,
+                },
+                "BEIDAN_WDL": wdl,
+                "BEIDAN_SFGG": beidan_handicap_wdl,
+                "BEIDAN_UP_DOWN_ODD_EVEN": up_down_odd_even,
+                "BEIDAN_GOALS": goals,
+                "BEIDAN_CS": cs,
+                "BEIDAN_HTFT": htft,
+                "ZUCAI_14_MATCH": wdl,
+                "ZUCAI_RENJIU": wdl,
+                "ZUCAI_6_HTFT": htft,
+                "ZUCAI_4_GOALS": goals,
+            }
+        )
+
+        return results
 
     def settle_ticket(self, ticket: dict, match_results: dict) -> dict:
         """

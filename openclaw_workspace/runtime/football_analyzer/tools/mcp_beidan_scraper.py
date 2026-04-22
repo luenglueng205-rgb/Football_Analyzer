@@ -1,11 +1,15 @@
 import asyncio
 import json
+import logging
+from tools.visual_browser import VisualBrowser
+
+logger = logging.getLogger(__name__)
 
 class MCPBeidanScraper:
     """
-    2026 版北单 MCP 提取器 (MCP Beidan Scraper Mock)
-    该工具通过模拟连接到本地的 Playwright MCP Server，自动打开 500.com，
-    提取动态 SP 值（让球胜平负），完美绕过传统反爬与接口封锁。
+    2026 版北单 MCP 提取器 (MCP Beidan Scraper)
+    该工具通过连接到本地的 VisualBrowser，自动打开 500.com，
+    提取动态 SP 值（让球胜平负）。
     """
     
     def __init__(self, mcp_server_url: str = "http://localhost:3000/mcp"):
@@ -13,27 +17,38 @@ class MCPBeidanScraper:
         
     async def extract_live_sp(self, home_team: str, away_team: str) -> dict:
         """
-        命令 MCP Browser 提取特定比赛的北单 SP
+        命令 VisualBrowser 提取特定比赛的北单 SP
         """
-        print(f"    [MCP Browser] 启动无头浏览器，访问 500.com/bjdc...")
-        await asyncio.sleep(0.5) # 模拟网络延迟
+        print(f"    [MCP Browser] 启动视觉浏览器引擎，访问北单数据中心...")
         
-        print(f"    [MCP Browser] AI 正在视觉定位 '{home_team}' 和 '{away_team}' 的行元素...")
-        await asyncio.sleep(0.5) # 模拟 DOM 解析
-        
-        print(f"    [MCP Browser] 成功提取到北单让球与即时 SP 数据。")
-        
-        # 返回结构化的 Mock 数据
-        return {
-            "match": f"{home_team} vs {away_team}",
-            "handicap": -1, # 比如主让1球
-            "sp_home": 3.12,
-            "sp_draw": 3.55,
-            "sp_away": 2.21,
-            "lottery_type": "beijing",
-            "source": "500_com_mcp_vision",
-            "status": "success"
-        }
+        try:
+            browser = VisualBrowser()
+            instruction = f"前往 500.com 的北京单场比分直播或赔率页面，搜索 '{home_team}' 和 '{away_team}' 的比赛，提取让球数以及胜、平、负的即时 SP 值。如果找不到，请回复'未找到'"
+            result_text = await browser.extract_info(instruction)
+            
+            print(f"    [MCP Browser] 成功提取到北单数据: {result_text[:100]}...")
+            
+            return {
+                "match": f"{home_team} vs {away_team}",
+                "raw_extracted_text": result_text,
+                "lottery_type": "beijing",
+                "source": "visual_browser",
+                "status": "success"
+            }
+        except Exception as e:
+            logger.error(f"提取北单数据失败: {e}")
+            # 返回保守默认值以防阻塞
+            return {
+                "match": f"{home_team} vs {away_team}",
+                "handicap": 0,
+                "sp_home": 2.50,
+                "sp_draw": 3.10,
+                "sp_away": 2.50,
+                "lottery_type": "beijing",
+                "source": "fallback",
+                "status": "error",
+                "message": str(e)
+            }
 
 if __name__ == "__main__":
     scraper = MCPBeidanScraper()

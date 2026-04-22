@@ -22,6 +22,16 @@ class SmokeItem:
         return asdict(self)
 
 
+def _fixture_text(*, workspace_root: Path, name: str) -> Optional[str]:
+    p = (workspace_root / "tests" / "fixtures" / name).resolve()
+    if not p.exists():
+        return None
+    try:
+        return p.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
 def _ok_item(*, item_id: str, lottery_type: str, capability: str, runtime: str, meta: Optional[Dict[str, Any]] = None) -> SmokeItem:
     return SmokeItem(
         id=item_id,
@@ -64,89 +74,156 @@ def _fail_item(
 
 def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional[Path] = None) -> Dict[str, Any]:
     ws_root = (workspace_root or Path(__file__).resolve().parents[1]).resolve()
-    runtime = "openclaw_runtime"
+    runtime = "standalone"
     items: List[SmokeItem] = []
 
-    def _record_fail(*, item_id: str, lottery_type: str, capability: str, reason: str, meta: Optional[Dict[str, Any]] = None) -> None:
-        if offline:
+    jingcai_sp_html = _fixture_text(workspace_root=ws_root, name="500_trade_jczq_sp_2026-04-15.html")
+    if not jingcai_sp_html:
+        items.append(
+            _degraded_item(
+                item_id="JINGCAI.fetch_sp.offline_fixture",
+                lottery_type="JINGCAI",
+                capability="fetch_sp",
+                runtime=runtime,
+                reason="fixture_missing:500_trade_jczq_sp_2026-04-15.html",
+            )
+        )
+    else:
+        try:
+            from tools.domestic_500_jczq_sp import parse_500_jczq_trade_sp_html
+
+            res = parse_500_jczq_trade_sp_html(
+                html=jingcai_sp_html,
+                home_team="Arsenal",
+                away_team="Tottenham",
+                kickoff_time="2026-04-15 20:00",
+            )
+            if res.get("ok") and isinstance(res.get("data"), dict) and (res["data"].get("jingcai_sp") or {}).get("WDL"):
+                items.append(
+                    _ok_item(
+                        item_id="JINGCAI.fetch_sp.offline_fixture",
+                        lottery_type="JINGCAI",
+                        capability="fetch_sp",
+                        runtime=runtime,
+                        meta={"provider": (res.get("data") or {}).get("provider")},
+                    )
+                )
+            else:
+                items.append(
+                    _fail_item(
+                        item_id="JINGCAI.fetch_sp.offline_fixture",
+                        lottery_type="JINGCAI",
+                        capability="fetch_sp",
+                        runtime=runtime,
+                        reason=f"parse_failed:{(res.get('error') or {}).get('code') or 'unknown'}",
+                        meta={"error": res.get("error")},
+                    )
+                )
+        except Exception as e:
             items.append(
-                _degraded_item(
-                    item_id=item_id,
-                    lottery_type=lottery_type,
-                    capability=capability,
+                _fail_item(
+                    item_id="JINGCAI.fetch_sp.offline_fixture",
+                    lottery_type="JINGCAI",
+                    capability="fetch_sp",
                     runtime=runtime,
-                    reason=f"offline_downgrade:{reason}",
-                    meta=meta,
+                    reason=f"exception:{type(e).__name__}:{str(e)}",
                 )
             )
-            return
+
+    live_html = _fixture_text(workspace_root=ws_root, name="500_live_detail_1234567890.html")
+    if not live_html:
         items.append(
-            _fail_item(
-                item_id=item_id,
-                lottery_type=lottery_type,
-                capability=capability,
-                runtime=runtime,
-                reason=reason,
-                meta=meta,
-            )
-        )
-
-    items.append(
-        _degraded_item(
-            item_id="JINGCAI.fetch_sp.offline_fixture",
-            lottery_type="JINGCAI",
-            capability="fetch_sp",
-            runtime=runtime,
-            reason="not_applicable_in_openclaw_runtime:domestic_500_jczq_sp_not_packaged",
-        )
-    )
-    items.append(
-        _degraded_item(
-            item_id="JINGCAI.live_state.offline_fixture",
-            lottery_type="JINGCAI",
-            capability="live_state",
-            runtime=runtime,
-            reason="not_applicable_in_openclaw_runtime:domestic_500_live_state_not_packaged",
-        )
-    )
-    items.append(
-        _degraded_item(
-            item_id="JINGCAI.results.offline_fixture",
-            lottery_type="JINGCAI",
-            capability="results",
-            runtime=runtime,
-            reason="not_applicable_in_openclaw_runtime:domestic_500_results_not_packaged",
-        )
-    )
-
-    try:
-        from tools.historical_impact import build_historical_impact, to_explain_item
-
-        hi = build_historical_impact(
-            lottery_type="JINGCAI",
-            league_code="E0",
-            odds={"home": 2.1, "draw": 3.4, "away": 3.2},
-            analysis={},
-            similar_odds_result={"ok": True, "data": []},
-            data_source={"raw_json_path": "x", "chroma_db_path": "y"},
-        )
-        item = to_explain_item(hi)
-        if isinstance(hi, dict) and isinstance(item, dict) and item.get("type") == "historical_impact":
-            items.append(_ok_item(item_id="JINGCAI.historical_impact.schema", lottery_type="JINGCAI", capability="historical_impact", runtime=runtime))
-        else:
-            _record_fail(
-                item_id="JINGCAI.historical_impact.schema",
+            _degraded_item(
+                item_id="JINGCAI.live_state.offline_fixture",
                 lottery_type="JINGCAI",
-                capability="historical_impact",
-                reason="invalid_schema",
+                capability="live_state",
+                runtime=runtime,
+                reason="fixture_missing:500_live_detail_1234567890.html",
             )
-    except Exception as e:
-        _record_fail(
-            item_id="JINGCAI.historical_impact.schema",
-            lottery_type="JINGCAI",
-            capability="historical_impact",
-            reason=f"exception:{type(e).__name__}:{str(e)}",
         )
+    else:
+        try:
+            from tools.domestic_500_live_state import parse_500_live_detail_html
+
+            res = parse_500_live_detail_html(html=live_html)
+            if res.get("ok") and isinstance(res.get("data"), dict) and res["data"].get("ft_score"):
+                items.append(
+                    _ok_item(
+                        item_id="JINGCAI.live_state.offline_fixture",
+                        lottery_type="JINGCAI",
+                        capability="live_state",
+                        runtime=runtime,
+                        meta={"ft_score": res["data"].get("ft_score"), "minute": res["data"].get("minute")},
+                    )
+                )
+            else:
+                items.append(
+                    _fail_item(
+                        item_id="JINGCAI.live_state.offline_fixture",
+                        lottery_type="JINGCAI",
+                        capability="live_state",
+                        runtime=runtime,
+                        reason=f"parse_failed:{(res.get('error') or {}).get('code') or 'unknown'}",
+                        meta={"error": res.get("error")},
+                    )
+                )
+        except Exception as e:
+            items.append(
+                _fail_item(
+                    item_id="JINGCAI.live_state.offline_fixture",
+                    lottery_type="JINGCAI",
+                    capability="live_state",
+                    runtime=runtime,
+                    reason=f"exception:{type(e).__name__}:{str(e)}",
+                )
+            )
+
+    results_html = _fixture_text(workspace_root=ws_root, name="500_trade_results_2026-04-15.html")
+    if not results_html:
+        items.append(
+            _degraded_item(
+                item_id="JINGCAI.results.offline_fixture",
+                lottery_type="JINGCAI",
+                capability="results",
+                runtime=runtime,
+                reason="fixture_missing:500_trade_results_2026-04-15.html",
+            )
+        )
+    else:
+        try:
+            from tools.domestic_500_results import parse_500_trade_results_html
+
+            parsed = parse_500_trade_results_html(html=results_html, date="2026-04-15")
+            if parsed:
+                items.append(
+                    _ok_item(
+                        item_id="JINGCAI.results.offline_fixture",
+                        lottery_type="JINGCAI",
+                        capability="results",
+                        runtime=runtime,
+                        meta={"count": len(parsed)},
+                    )
+                )
+            else:
+                items.append(
+                    _fail_item(
+                        item_id="JINGCAI.results.offline_fixture",
+                        lottery_type="JINGCAI",
+                        capability="results",
+                        runtime=runtime,
+                        reason="parse_failed:no_rows",
+                    )
+                )
+        except Exception as e:
+            items.append(
+                _fail_item(
+                    item_id="JINGCAI.results.offline_fixture",
+                    lottery_type="JINGCAI",
+                    capability="results",
+                    runtime=runtime,
+                    reason=f"exception:{type(e).__name__}:{str(e)}",
+                )
+            )
 
     try:
         from tools.lottery_router import LotteryRouter
@@ -157,29 +234,66 @@ def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional
         if out.get("status") == "SUCCESS":
             items.append(_ok_item(item_id="JINGCAI.ticket_validation", lottery_type="JINGCAI", capability="ticket_validation", runtime=runtime))
         else:
-            _record_fail(
+            items.append(
+                _fail_item(
+                    item_id="JINGCAI.ticket_validation",
+                    lottery_type="JINGCAI",
+                    capability="ticket_validation",
+                    runtime=runtime,
+                    reason=f"unexpected_status:{out.get('status')}",
+                )
+            )
+    except Exception as e:
+        items.append(
+            _fail_item(
                 item_id="JINGCAI.ticket_validation",
                 lottery_type="JINGCAI",
                 capability="ticket_validation",
-                reason=f"unexpected_status:{out.get('status')}",
+                runtime=runtime,
+                reason=f"exception:{type(e).__name__}:{str(e)}",
             )
-    except Exception as e:
-        _record_fail(
-            item_id="JINGCAI.ticket_validation",
-            lottery_type="JINGCAI",
-            capability="ticket_validation",
-            reason=f"exception:{type(e).__name__}:{str(e)}",
         )
 
-    items.append(
-        _degraded_item(
-            item_id="BEIDAN.fetch_sp.offline_fixture",
-            lottery_type="BEIDAN",
-            capability="fetch_sp",
-            runtime=runtime,
-            reason="not_applicable_in_openclaw_runtime:domestic_500_beidan_sp_not_packaged",
+    beidan_html = _fixture_text(workspace_root=ws_root, name="500_trade_beidan_sp_2026-04-15.html")
+    if not beidan_html:
+        items.append(
+            _degraded_item(
+                item_id="BEIDAN.fetch_sp.offline_fixture",
+                lottery_type="BEIDAN",
+                capability="fetch_sp",
+                runtime=runtime,
+                reason="fixture_missing:500_trade_beidan_sp_2026-04-15.html",
+            )
         )
-    )
+    else:
+        try:
+            from tools.domestic_500_beidan_sp import parse_500_beidan_sp_html
+
+            res = parse_500_beidan_sp_html(html=beidan_html, home_team="Arsenal", away_team="Tottenham", fid="1234567890")
+            sp = (res.get("data") or {}).get("beidan_sp") if isinstance(res.get("data"), dict) else None
+            if res.get("ok") and isinstance(sp, dict) and sp.get("HANDICAP_WDL"):
+                items.append(_ok_item(item_id="BEIDAN.fetch_sp.offline_fixture", lottery_type="BEIDAN", capability="fetch_sp", runtime=runtime))
+            else:
+                items.append(
+                    _fail_item(
+                        item_id="BEIDAN.fetch_sp.offline_fixture",
+                        lottery_type="BEIDAN",
+                        capability="fetch_sp",
+                        runtime=runtime,
+                        reason=f"parse_failed:{(res.get('error') or {}).get('code') or 'unknown'}",
+                        meta={"error": res.get("error")},
+                    )
+                )
+        except Exception as e:
+            items.append(
+                _fail_item(
+                    item_id="BEIDAN.fetch_sp.offline_fixture",
+                    lottery_type="BEIDAN",
+                    capability="fetch_sp",
+                    runtime=runtime,
+                    reason=f"exception:{type(e).__name__}:{str(e)}",
+                )
+            )
 
     try:
         from tools.lottery_router import LotteryRouter
@@ -190,18 +304,24 @@ def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional
         if out.get("status") == "SUCCESS":
             items.append(_ok_item(item_id="BEIDAN.ticket_validation", lottery_type="BEIDAN", capability="ticket_validation", runtime=runtime))
         else:
-            _record_fail(
+            items.append(
+                _fail_item(
+                    item_id="BEIDAN.ticket_validation",
+                    lottery_type="BEIDAN",
+                    capability="ticket_validation",
+                    runtime=runtime,
+                    reason=f"unexpected_status:{out.get('status')}",
+                )
+            )
+    except Exception as e:
+        items.append(
+            _fail_item(
                 item_id="BEIDAN.ticket_validation",
                 lottery_type="BEIDAN",
                 capability="ticket_validation",
-                reason=f"unexpected_status:{out.get('status')}",
+                runtime=runtime,
+                reason=f"exception:{type(e).__name__}:{str(e)}",
             )
-    except Exception as e:
-        _record_fail(
-            item_id="BEIDAN.ticket_validation",
-            lottery_type="BEIDAN",
-            capability="ticket_validation",
-            reason=f"exception:{type(e).__name__}:{str(e)}",
         )
 
     try:
@@ -214,18 +334,24 @@ def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional
         if out.get("status") == "SUCCESS":
             items.append(_ok_item(item_id="ZUCAI.ticket_validation", lottery_type="ZUCAI", capability="ticket_validation", runtime=runtime))
         else:
-            _record_fail(
+            items.append(
+                _fail_item(
+                    item_id="ZUCAI.ticket_validation",
+                    lottery_type="ZUCAI",
+                    capability="ticket_validation",
+                    runtime=runtime,
+                    reason=f"unexpected_status:{out.get('status')}",
+                )
+            )
+    except Exception as e:
+        items.append(
+            _fail_item(
                 item_id="ZUCAI.ticket_validation",
                 lottery_type="ZUCAI",
                 capability="ticket_validation",
-                reason=f"unexpected_status:{out.get('status')}",
+                runtime=runtime,
+                reason=f"exception:{type(e).__name__}:{str(e)}",
             )
-    except Exception as e:
-        _record_fail(
-            item_id="ZUCAI.ticket_validation",
-            lottery_type="ZUCAI",
-            capability="ticket_validation",
-            reason=f"exception:{type(e).__name__}:{str(e)}",
         )
 
     try:
@@ -236,18 +362,24 @@ def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional
         if c == 10:
             items.append(_ok_item(item_id="ZUCAI.parlay_combinatorics", lottery_type="ZUCAI", capability="parlay_combinatorics", runtime=runtime))
         else:
-            _record_fail(
+            items.append(
+                _fail_item(
+                    item_id="ZUCAI.parlay_combinatorics",
+                    lottery_type="ZUCAI",
+                    capability="parlay_combinatorics",
+                    runtime=runtime,
+                    reason=f"unexpected_count:{c}",
+                )
+            )
+    except Exception as e:
+        items.append(
+            _fail_item(
                 item_id="ZUCAI.parlay_combinatorics",
                 lottery_type="ZUCAI",
                 capability="parlay_combinatorics",
-                reason=f"unexpected_count:{c}",
+                runtime=runtime,
+                reason=f"exception:{type(e).__name__}:{str(e)}",
             )
-    except Exception as e:
-        _record_fail(
-            item_id="ZUCAI.parlay_combinatorics",
-            lottery_type="ZUCAI",
-            capability="parlay_combinatorics",
-            reason=f"exception:{type(e).__name__}:{str(e)}",
         )
 
     try:
@@ -265,18 +397,24 @@ def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional
         if bets and bets[0].get("lottery_type") == "ZUCAI":
             items.append(_ok_item(item_id="ZUCAI.selection_edge", lottery_type="ZUCAI", capability="selection_edge", runtime=runtime))
         else:
-            _record_fail(
+            items.append(
+                _fail_item(
+                    item_id="ZUCAI.selection_edge",
+                    lottery_type="ZUCAI",
+                    capability="selection_edge",
+                    runtime=runtime,
+                    reason="no_value_bets",
+                )
+            )
+    except Exception as e:
+        items.append(
+            _fail_item(
                 item_id="ZUCAI.selection_edge",
                 lottery_type="ZUCAI",
                 capability="selection_edge",
-                reason="no_value_bets",
+                runtime=runtime,
+                reason=f"exception:{type(e).__name__}:{str(e)}",
             )
-    except Exception as e:
-        _record_fail(
-            item_id="ZUCAI.selection_edge",
-            lottery_type="ZUCAI",
-            capability="selection_edge",
-            reason=f"exception:{type(e).__name__}:{str(e)}",
         )
 
     pass_count = sum(1 for i in items if i.status == "PASS")
@@ -290,3 +428,4 @@ def run_capability_smoke_tests(*, offline: bool = True, workspace_root: Optional
         "items": [i.to_dict() for i in items],
         "meta": {"offline": bool(offline), "workspace_root": str(ws_root)},
     }
+

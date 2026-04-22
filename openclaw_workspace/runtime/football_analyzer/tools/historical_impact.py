@@ -122,4 +122,3 @@ def to_explain_item(historical_impact: Dict[str, Any]) -> Dict[str, Any]:
         },
         "samples": sim.get("sample", []),
     }
-

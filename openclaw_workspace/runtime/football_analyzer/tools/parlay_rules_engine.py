@@ -78,6 +78,34 @@ class ParlayRulesEngine:
         else:
             raise ValueError(f"未知的彩票类型: {lottery_type}")
 
+    def get_m_n_ticket_combinations(self, ticket_legs: list, m: int, n: int) -> list:
+        """
+        物理拆解 M串N。例如 3串4 拆解为 3个2串1 和 1个3串1 的具体场次列表。
+        """
+        import itertools
+        m_n_map = {
+            "3_3": [2], "3_4": [2, 3],
+            "4_4": [3], "4_5": [3, 4], "4_6": [2], "4_11": [2, 3, 4],
+            "5_5": [4], "5_6": [4, 5], "5_10": [2], "5_16": [3, 4, 5], "5_20": [2, 3], "5_26": [2, 3, 4, 5],
+            "6_6": [5], "6_7": [5, 6], "6_15": [2], "6_20": [3], "6_22": [4, 5, 6], "6_35": [2, 3], "6_42": [3, 4, 5, 6], "6_50": [2, 3, 4], "6_57": [2, 3, 4, 5, 6],
+            "7_7": [6], "7_8": [6, 7], "7_21": [5], "7_35": [4], "7_120": [2, 3, 4, 5, 6, 7],
+            "8_8": [7], "8_9": [7, 8], "8_28": [6], "8_56": [5], "8_70": [4], "8_247": [2, 3, 4, 5, 6, 7, 8]
+        }
+        
+        key = f"{m}_{n}"
+        if key not in m_n_map:
+            raise ValueError(f"Unsupported M_N combination: {key}")
+            
+        target_sizes = m_n_map[key]
+        combinations = []
+        
+        for size in target_sizes:
+            combos = list(itertools.combinations(ticket_legs, size))
+            # Convert tuples to lists
+            combinations.extend([list(c) for c in combos])
+            
+        return combinations
+
     def generate_free_parlay_combinations(self, match_selections: list, target_parlays: list) -> int:
         """
         计算自由过关（支持复式投注：即单场比赛双选/多选容错）的总注数。

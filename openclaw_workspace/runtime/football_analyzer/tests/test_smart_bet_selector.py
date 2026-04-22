@@ -35,3 +35,38 @@ def test_select_best_value_bets():
     assert recommendations[0]["selection"] == "under_2.5"
     assert recommendations[1]["market"] == "handicap_-2"
     assert recommendations[1]["selection"] == "home"
+
+def test_extract_value_bets_with_lottery_types():
+    from tools.smart_bet_selector import SmartBetSelector
+    selector = SmartBetSelector(min_ev_threshold=1.05)
+    
+    matches_data = [
+        {
+            "match_id": "M1",
+            "lottery_type": "JINGCAI",
+            "markets": {"WDL": {"3": {"odds": 2.0, "prob": 0.6}}} # EV = 1.2
+        },
+        {
+            "match_id": "M2",
+            "lottery_type": "BEIDAN",
+            "markets": {"WDL": {"3": {"odds": 2.0, "prob": 0.9}}} # EV = 2.0 * 0.9 * 0.65 = 1.17
+        },
+        {
+            "match_id": "M3",
+            "lottery_type": "ZUCAI",
+            "markets": {"WDL": {"3": {"odds": 0.0, "prob": 0.7, "support_rate": 0.4, "estimated_pool": 1000000}}} # Probability Edge
+        }
+    ]
+    
+    results = selector.extract_value_bets(matches_data)
+    assert len(results) == 3
+    
+    jingcai_res = next(r for r in results if r["match_id"] == "M1")
+    assert jingcai_res["ev"] == 1.2
+    
+    beidan_res = next(r for r in results if r["match_id"] == "M2")
+    assert beidan_res["ev"] == 1.17
+    
+    zucai_res = next(r for r in results if r["match_id"] == "M3")
+    assert "probability_edge" in zucai_res
+    assert zucai_res["probability_edge"] == 0.3 # 0.7 - 0.4

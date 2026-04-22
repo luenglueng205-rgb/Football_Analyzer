@@ -11,10 +11,10 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
-STANDALONE_DIR = WORKSPACE_ROOT / "standalone_workspace"
-if str(STANDALONE_DIR) not in sys.path:
-    sys.path.insert(0, str(STANDALONE_DIR))
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_DIR = WORKSPACE_ROOT / "runtime" / "football_analyzer"
+if str(RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_DIR))
 
 from core.event_bus import EventBus
 from agents.daemon_monitor import RealTimeOddsDaemon

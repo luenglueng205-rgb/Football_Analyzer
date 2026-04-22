@@ -38,16 +38,16 @@ class OpenClawMainAgent:
         self.brain = AINativeCoreAgent()
         self.memory = MemoryManager()
 
-    async def analyze_and_trade(self, lottery_type: str, date_str: str) -> Dict[str, Any]:
+    async def analyze_and_trade(self, lottery_type: str, date_str: str, home_team: str = "未知主队", away_team: str = "未知客队") -> Dict[str, Any]:
         """
         触发核心分析引擎
         """
-        logger.info(f"Starting analysis for {lottery_type} on {date_str}")
+        logger.info(f"Starting analysis for {lottery_type} on {date_str} ({home_team} vs {away_team})")
         
         try:
             state = {
-                "current_match": {"home_team": "曼城", "away_team": "阿森纳"},
-                "task": f"Please run a full EV and portfolio analysis for {lottery_type} on {date_str}.",
+                "current_match": {"home_team": home_team, "away_team": away_team},
+                "task": f"Please run a full EV and portfolio analysis for {lottery_type} on {date_str}. The target match is {home_team} vs {away_team}.",
                 "params": {"lottery_type": lottery_type.lower(), "lottery_desc": lottery_type},
                 "messages": []
             }
@@ -73,10 +73,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OpenClaw Main Agent (AI-Native)")
     parser.add_argument("--lottery", default="JINGCAI", choices=["JINGCAI", "BEIDAN", "ZUCAI"])
     parser.add_argument("--date", default="2026-04-16", help="YYYY-MM-DD")
+    parser.add_argument("--home", default="曼城", help="主队名称")
+    parser.add_argument("--away", default="阿森纳", help="客队名称")
     parser.add_argument("--online", action="store_true")
     
     args = parser.parse_args()
     
     agent = OpenClawMainAgent(online=args.online)
-    result = asyncio.run(agent.analyze_and_trade(args.lottery, args.date))
+    result = asyncio.run(agent.analyze_and_trade(args.lottery, args.date, args.home, args.away))
     print(json.dumps(result, indent=2, ensure_ascii=False))

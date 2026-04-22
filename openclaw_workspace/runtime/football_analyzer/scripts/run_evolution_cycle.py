@@ -159,7 +159,7 @@ def _load_report(path: Path):
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=str, default="", help="已有回测报告 JSON（包含 matches/baseline_report）")
-    parser.add_argument("--dataset", type=str, default="", help="历史数据集 JSON（默认使用 openclaw datasets/raw）")
+    parser.add_argument("--dataset", type=str, default="", help="历史数据集 JSON（默认使用 standalone datasets/raw）")
     parser.add_argument("--sample-size", type=int, default=80)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--max-scan", type=int, default=30000)

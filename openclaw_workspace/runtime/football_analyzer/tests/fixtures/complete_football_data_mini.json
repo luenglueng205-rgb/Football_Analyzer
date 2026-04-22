@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "source": "unit_test_fixture",
+    "count": 14,
+    "leagues": ["E0", "SP1"],
+    "date_range": "2026-04-15",
+    "last_updated": "2026-04-16"
+  },
+  "matches": [
+    {"league": "E0", "date": "2026-04-15", "home_team": "Arsenal", "away_team": "Tottenham", "home_goals": 2, "away_goals": 1, "result": "2-1", "home_odds": 2.0, "draw_odds": 3.3, "away_odds": 3.6},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Chelsea", "away_team": "Liverpool", "home_goals": 0, "away_goals": 1, "result": "0-1", "home_odds": 2.4, "draw_odds": 3.2, "away_odds": 2.9},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Man City", "away_team": "Man Utd", "home_goals": 1, "away_goals": 1, "result": "1-1", "home_odds": 1.55, "draw_odds": 4.1, "away_odds": 6.2},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Newcastle", "away_team": "Aston Villa", "home_goals": 3, "away_goals": 0, "result": "3-0", "home_odds": 1.75, "draw_odds": 3.7, "away_odds": 4.8},
+    {"league": "E0", "date": "2026-04-15", "home_team": "West Ham", "away_team": "Brighton", "home_goals": 0, "away_goals": 2, "result": "0-2", "home_odds": 2.1, "draw_odds": 3.35, "away_odds": 3.4},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Everton", "away_team": "Wolves", "home_goals": 2, "away_goals": 2, "result": "2-2", "home_odds": 2.3, "draw_odds": 3.1, "away_odds": 3.1},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Brentford", "away_team": "Fulham", "home_goals": 1, "away_goals": 0, "result": "1-0", "home_odds": 2.05, "draw_odds": 3.4, "away_odds": 3.7},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Nottingham", "away_team": "Bournemouth", "home_goals": 0, "away_goals": 0, "result": "0-0", "home_odds": 2.6, "draw_odds": 3.0, "away_odds": 2.9},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Leicester", "away_team": "Southampton", "home_goals": 1, "away_goals": 2, "result": "1-2", "home_odds": 2.45, "draw_odds": 3.25, "away_odds": 2.85},
+    {"league": "E0", "date": "2026-04-15", "home_team": "Leeds", "away_team": "Burnley", "home_goals": 2, "away_goals": 0, "result": "2-0", "home_odds": 1.9, "draw_odds": 3.45, "away_odds": 4.2},
+    {"league": "SP1", "date": "2026-04-15", "home_team": "Real Madrid", "away_team": "Barcelona", "home_goals": 2, "away_goals": 3, "result": "2-3", "home_odds": 2.35, "draw_odds": 3.6, "away_odds": 2.7},
+    {"league": "SP1", "date": "2026-04-15", "home_team": "Atletico", "away_team": "Sevilla", "home_goals": 1, "away_goals": 0, "result": "1-0", "home_odds": 1.8, "draw_odds": 3.4, "away_odds": 4.6},
+    {"league": "SP1", "date": "2026-04-15", "home_team": "Valencia", "away_team": "Villarreal", "home_goals": 0, "away_goals": 1, "result": "0-1", "home_odds": 2.8, "draw_odds": 3.1, "away_odds": 2.55},
+    {"league": "SP1", "date": "2026-04-15", "home_team": "Betis", "away_team": "Sociedad", "home_goals": 2, "away_goals": 2, "result": "2-2", "home_odds": 2.7, "draw_odds": 3.0, "away_odds": 2.75}
+  ]
+}
+

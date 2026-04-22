@@ -28,8 +28,8 @@ class DarkIntelExtractor:
         print(f"\n    [🕵️ Dark Intel] 启动暗网情报提取。正在分析 '{team_name}' 的社交媒体舆情...")
         await asyncio.sleep(0.5) 
         
-        if not self.client:
-            return self._mock_dark_intel_analysis(team_name)
+        if not self.client or getattr(self.client, "api_key", "") == "dummy-key-for-test":
+            raise ValueError("请在环境变量中配置有效的 OPENAI_API_KEY 以启动暗网情报的 LLM 情感分析。")
             
         prompt = f"""
         你是一个顶级的足彩量化情报分析师。
@@ -56,21 +56,6 @@ class DarkIntelExtractor:
         except Exception as e:
             return {"sentiment_score": 0.0, "xg_modifier": 0.0, "reasoning": f"分析失败: {e}"}
 
-    def _mock_dark_intel_analysis(self, team_name: str) -> dict:
-        """无网络/Key 时的 Mock 数据"""
-        is_bad = len(team_name) % 2 == 0 # 随机好坏
-        if is_bad:
-            return {
-                "sentiment_score": -0.8,
-                "xg_modifier": -0.12,
-                "reasoning": f"检测到当地跟队记者爆料 {team_name} 主力中卫与主教练在训练场发生激烈争吵，更衣室气氛降至冰点，战意成疑。"
-            }
-        else:
-            return {
-                "sentiment_score": 0.6,
-                "xg_modifier": 0.08,
-                "reasoning": f"社交媒体显示 {team_name} 球迷对新任主教练极度狂热，主场门票售罄，'换帅红利'明显，士气高涨。"
-            }
 
 if __name__ == "__main__":
     extractor = DarkIntelExtractor()

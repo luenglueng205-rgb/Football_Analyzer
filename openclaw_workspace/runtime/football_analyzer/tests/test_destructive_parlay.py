@@ -61,3 +61,19 @@ def test_calculate_parlay_max_cap():
     
     result = matrix.calculate_parlay(matches, parlay_type="2x1", total_stake=100)
     assert result["max_potential_return"] <= 200000, "calculate_parlay 没有应用奖金封顶限制"
+
+def test_m_n_physical_decomposition():
+    from standalone_workspace.tools.parlay_rules_engine import ParlayRulesEngine
+    engine = ParlayRulesEngine()
+    
+    # 3 matches, playing 3x4 (which means three 2x1 and one 3x1)
+    legs = ["M1", "M2", "M3"]
+    
+    combos = engine.get_m_n_ticket_combinations(legs, 3, 4)
+    
+    assert len(combos) == 4
+    assert ["M1", "M2"] in combos
+    assert ["M1", "M3"] in combos
+    assert ["M2", "M3"] in combos
+    assert ["M1", "M2", "M3"] in combos
+

@@ -1,17 +1,12 @@
 import os
 import sqlite3
 import datetime
-import json
-import logging
+from typing import Optional
+
 from tools.paths import data_dir
 
-logger = logging.getLogger(__name__)
-
 class BettingLedger:
-    """
-    负责记录所有投注历史、虚拟 PnL，供回测和 AutoTuner 反思使用。
-    """
-    def __init__(self, db_path=None):
+    def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path or os.path.join(data_dir(), "ledger.db")
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         self._init_db()
