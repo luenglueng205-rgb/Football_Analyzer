@@ -51,7 +51,30 @@ class OpenClawMainAgent:
                 "params": {"lottery_type": lottery_type.lower(), "lottery_desc": lottery_type},
                 "messages": []
             }
-            result = await self.brain.process(state)
+            if getattr(self, "use_graph", False):
+                result = await self.brain.process_graph(state)
+            else:
+                result = await self.brain.process(state)
+            return {"ok": True, "data": result}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    async def post_match_review(self, home_team: str, away_team: str, home_score: int, away_score: int, prediction_file: str = None) -> Dict[str, Any]:
+        """触发赛后复盘与强化学习"""
+        logger.info(f"Starting post-match review for {home_team} vs {away_team}")
+        try:
+            from agents.after_action_review import AfterActionReviewAgent
+            aar_agent = AfterActionReviewAgent()
+            
+            match_data = {"home_team": home_team, "away_team": away_team, "home_score": home_score, "away_score": away_score}
+            
+            # In a real system, load prediction from DB. For now, mock it.
+            prediction = {"predicted_winner": home_team, "confidence": 0.8}
+            
+            result = await aar_agent.generate_reflection(match_data, prediction)
+            if result.get("lesson"):
+                await aar_agent.save_lesson_to_doc(result["lesson"])
+                
             return {"ok": True, "data": result}
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -71,14 +94,26 @@ class OpenClawMainAgent:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="OpenClaw Main Agent (AI-Native)")
+    parser.add_argument("--action", default="analyze", choices=["analyze", "query", "review"])
     parser.add_argument("--lottery", default="JINGCAI", choices=["JINGCAI", "BEIDAN", "ZUCAI"])
     parser.add_argument("--date", default="2026-04-16", help="YYYY-MM-DD")
     parser.add_argument("--home", default="曼城", help="主队名称")
     parser.add_argument("--away", default="阿森纳", help="客队名称")
+    parser.add_argument("--home_score", type=int, default=0)
+    parser.add_argument("--away_score", type=int, default=0)
+    parser.add_argument("--use_graph", action="store_true", help="使用最新的 StateGraph 架构而不是传统的 ReAct 循环")
     parser.add_argument("--online", action="store_true")
     
     args = parser.parse_args()
     
     agent = OpenClawMainAgent(online=args.online)
-    result = asyncio.run(agent.analyze_and_trade(args.lottery, args.date, args.home, args.away))
+    agent.use_graph = args.use_graph
+    
+    if args.action == "analyze":
+        result = asyncio.run(agent.analyze_and_trade(args.lottery, args.date, args.home, args.away))
+    elif args.action == "review":
+        result = asyncio.run(agent.post_match_review(args.home, args.away, args.home_score, args.away_score))
+    elif args.action == "query":
+        result = asyncio.run(agent.query_intelligence(f"{args.home} vs {args.away}情报"))
+        
     print(json.dumps(result, indent=2, ensure_ascii=False))

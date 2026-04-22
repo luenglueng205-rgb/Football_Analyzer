@@ -21,9 +21,9 @@ class AINativeCoreAgent:
     业务规则通过 System Prompt (LOTTERY_RULES.md) 注入。
     """
     def __init__(self):
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-        api_key = os.getenv("OPENAI_API_KEY", "dummy-key-for-test")
+        self.model = os.getenv("DEEPSEEK_REASONING_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+        api_key = os.getenv("DEEPSEEK_API_KEY", os.getenv("OPENAI_API_KEY", "dummy-key-for-test"))
+        base_url = os.getenv("DEEPSEEK_API_BASE", os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"))
         
         try:
             self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -31,6 +31,15 @@ class AINativeCoreAgent:
             logger.error(f"OpenAI 初始化失败: {e}")
             self.client = None
             
+        from tools.tool_registry_v2 import get_openai_tools
+        from tools.mcp_discoverer import MCPToolDiscoverer
+        
+        self.mcp_discoverer = MCPToolDiscoverer()
+        mcp_tools = self.mcp_discoverer.discover_local_tools()
+        
+        self.tools = get_openai_tools() + mcp_tools
+        self.mcp_tool_mapping = self.mcp_discoverer.mcp_tool_mapping
+
         self._load_rules()
         
     def _load_rules(self):
@@ -66,6 +75,31 @@ class AINativeCoreAgent:
                 
         if not self.system_prompt:
             self.system_prompt = "你是一名顶级的 AI 彩票精算师。你需要自主调用工具来分析赛事。"
+
+    async def process_graph(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        使用 2026 版 StateGraph (DAG) 架构执行分析，避免 ReAct 死循环。
+        """
+        from core.state_graph_core import compile_football_graph
+        graph = compile_football_graph()
+        
+        # Format initial state
+        initial_state = {
+            "match": f"{state.get('current_match', {}).get('home_team')} vs {state.get('current_match', {}).get('away_team')}",
+            "data": state.get("params", {}),
+            "hypothesis": "",
+            "math_verified": False,
+            "debate_passed": False,
+            "final_decision": "",
+            "messages": []
+        }
+        
+        final_state = await graph.ainvoke(initial_state)
+        
+        # Convert graph output to standard report format
+        report = f"# AI-Native Graph Analysis Report\n\n## 最终决策\n{final_state.get('final_decision')}\n\n## 验证状态\n数学验证: {final_state.get('math_verified')}\n风控辩论: {final_state.get('debate_passed')}"
+        
+        return {"report": report, "state": final_state}
 
     async def process(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """单脑/多脑的 ReAct 循环入口"""
@@ -177,7 +211,10 @@ class AINativeCoreAgent:
                         
                     try:
                         # 引入单次工具调用最高 15 秒的严格超时机制，防止死锁
-                        tool_result = await asyncio.wait_for(execute_tool(function_name, arguments), timeout=15.0)
+                        if function_name in self.mcp_tool_mapping:
+                            tool_result = await asyncio.wait_for(self.mcp_tool_mapping[function_name](**arguments), timeout=15.0)
+                        else:
+                            tool_result = await asyncio.wait_for(execute_tool(function_name, arguments), timeout=15.0)
                     except asyncio.TimeoutError:
                         logger.error(f"工具调用超时 ({function_name})")
                         tool_result = {"ok": False, "error": f"Timeout execution {function_name} after 15 seconds. Proceed with alternative tools."}
