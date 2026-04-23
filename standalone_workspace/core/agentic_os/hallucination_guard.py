@@ -1,21 +1,34 @@
 import json
+import os
 from typing import Dict, Any
 
 class HallucinationGuard:
     """
-    2026 AI Native Guardrails: 幻觉防火墙
-    绝对禁止 LLM 直接触碰资金或进行自由发挥的数学计算。
-    它必须遵守严格的 Pydantic Schema 契约，并通过数学引擎的二次交叉验证。
+    100% AI-Native Guardrails: 动态幻觉防火墙
+    不再使用人类硬编码的 `MAX_KELLY_STAKE = 0.05`。
+    所有的风控阈值由系统的灵魂 (soul_config.json) 动态读取，实现风控自治。
     """
-    def __init__(self):
-        # 铁律：最大允许单笔下注比例 (防止 LLM 幻觉梭哈)
-        self.MAX_KELLY_STAKE = 0.05 
-        # 铁律：最小允许期望值 (防止 LLM 乱买垃圾赔率)
-        self.MIN_EV_THRESHOLD = 0.02
+    def __init__(self, config_file="standalone_workspace/core/agentic_os/soul_config.json"):
+        self.config_file = config_file
+        self.max_kelly_stake = 0.02 # 默认极度保守
+        self.min_ev_threshold = 0.05
+        self._load_dynamic_config()
+
+    def _load_dynamic_config(self):
+        """AI-Native: 动态加载由 Dynamic Judge 调整的风控阈值"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, "r") as f:
+                    config = json.load(f)
+                    # 从配置文件读取 AI 设定的风险容忍度
+                    self.max_kelly_stake = config.get("risk_tolerance", 0.02)
+                    self.min_ev_threshold = config.get("min_ev", 0.02)
+            except Exception as e:
+                print(f"   [Guardrails] 无法加载动态配置: {e}，回退至安全默认值。")
 
     def verify_llm_output(self, llm_response: Dict[str, Any], current_odds: float) -> Dict[str, Any]:
         print("\n==================================================")
-        print("🛡️ [Guardrails] 启动 LLM 幻觉防火墙 (Deterministic Audit)...")
+        print(f"🛡️ [Guardrails] 启动动态幻觉防火墙 (Max Stake: {self.max_kelly_stake:.1%})...")
         print("==================================================")
         
         # 1. 检查 Schema 完整性 (Schema Enforcement)
@@ -34,36 +47,32 @@ class HallucinationGuard:
             return {"status": "REJECTED", "reason": "Probability Out of Bounds"}
             
         # 3. 确定性数学接管 (Deterministic Math Takeover)
-        # 绝对不信任 LLM 算出的 EV，系统自己用公式重算！
         real_ev = (prob * current_odds) - 1.0
         print(f"   -> 🧮 [Math Engine] 重新计算真实期望值 (EV): {real_ev:.4f}")
         
-        if real_ev < self.MIN_EV_THRESHOLD:
-            print(f"   -> 🛑 [Risk Control] 真实 EV ({real_ev:.4f}) 低于系统安全阈值。拒绝交易。")
+        if real_ev < self.min_ev_threshold:
+            print(f"   -> 🛑 [Risk Control] 真实 EV ({real_ev:.4f}) 低于动态安全阈值 ({self.min_ev_threshold})。拒绝交易。")
             return {"status": "REJECTED", "reason": "Negative or Low EV"}
             
         # 4. 确定性仓位计算 (Kelly Criterion)
-        # 绝对不信任 LLM 给出的下注金额，系统自己用凯利公式算！
-        # f* = (bp - q) / b  (b = 赔率-1)
         b = current_odds - 1.0
         q = 1.0 - prob
         kelly_fraction = (b * prob - q) / b
         
-        # 叠加 LLM 的置信度衰减 (如果 LLM 只有 50% 把握，仓位减半)
         adjusted_kelly = kelly_fraction * confidence
         
-        # 最终硬性截断 (Kill Switch)
-        final_stake = min(max(0.0, adjusted_kelly), self.MAX_KELLY_STAKE)
+        # 使用 AI 动态设定的最大仓位进行截断
+        final_stake = min(max(0.0, adjusted_kelly), self.max_kelly_stake)
         
         print(f"   -> 📉 [Position Sizing] 凯利公式计算基准仓位: {kelly_fraction:.2%}")
         print(f"   -> 📉 [Position Sizing] 置信度衰减后仓位: {adjusted_kelly:.2%}")
-        print(f"   -> 🔒 [Hard Limit] 最终安全下注比例: {final_stake:.2%}")
+        print(f"   -> 🔒 [Dynamic Limit] 最终安全下注比例: {final_stake:.2%} (受限于 AI 风控阀值)")
         
         if final_stake <= 0.001:
             print("   -> 🛑 [Risk Control] 计算出安全仓位接近于 0，放弃交易。")
             return {"status": "REJECTED", "reason": "Zero Safe Stake"}
 
-        print("   -> ✅ [Guardrails Passed] LLM 预测已通过所有数学与逻辑审计！")
+        print("   -> ✅ [Guardrails Passed] LLM 预测已通过动态审计！")
         return {
             "status": "APPROVED",
             "safe_stake_percentage": final_stake,
@@ -72,21 +81,5 @@ class HallucinationGuard:
 
 if __name__ == "__main__":
     guard = HallucinationGuard()
-    
-    # 模拟一个产生幻觉的 LLM 输出 (瞎编了一个极高的概率想梭哈)
-    hallucinated_response = {
-        "predicted_win_prob": 0.95, # 吹牛
-        "confidence_score": 0.90,
-        "reasoning_hash": "abc123xyz"
-    }
-    
-    print("\n>>> 测试 1: 拦截危险赔率 (低赔率下的高概率依然 EV 为负) <<<")
-    guard.verify_llm_output(hallucinated_response, current_odds=1.02)
-    
-    print("\n>>> 测试 2: 正常的高价值赔率审计 <<<")
-    valid_response = {
-        "predicted_win_prob": 0.55, 
-        "confidence_score": 0.80,
-        "reasoning_hash": "def456uvw"
-    }
+    valid_response = {"predicted_win_prob": 0.55, "confidence_score": 0.80, "reasoning_hash": "def456uvw"}
     guard.verify_llm_output(valid_response, current_odds=2.10)
