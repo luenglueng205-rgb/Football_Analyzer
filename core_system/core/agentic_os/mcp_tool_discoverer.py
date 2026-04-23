@@ -8,7 +8,7 @@ class MCPToolDiscoverer:
     它会在启动时，自己去扫描系统里的工具目录，动态加载可用能力 (Capabilities)。
     如果发现新工具（比如人类刚写好一个爬虫），它会自动将其纳入自己的大脑。
     """
-    def __init__(self, skills_dir="standalone_workspace/skills"):
+    def __init__(self, skills_dir="core_system/skills"):
         self.skills_dir = skills_dir
         self.available_tools = {}
 
