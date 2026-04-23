@@ -1,9 +1,15 @@
 from typing import Annotated, TypedDict, List, Dict, Any, Literal
 import operator
 import json
+import os
+from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langgraph.graph import StateGraph, END, START
 from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+
+# 加载环境变量
+load_dotenv()
 
 # 引入我们写好的硬核本地工具
 from core_system.skills.hardcore_quant_math import HardcoreQuantMath
@@ -52,63 +58,37 @@ class BettingState(TypedDict):
     execution_route: str
 
 # ==========================================
-# 3. 定义模拟的真实大模型 (DevMockLLM) - 开发阶段免 API Key
+# 3. 配置真实的大模型 (Real LLM) - 通过 .env 配置
 # ==========================================
-class DevMockLLM:
-    """开发阶段使用的 Mock 大模型，完全模拟 OpenAI/Anthropic Tool Calling 返回格式"""
-    def __init__(self):
-        self.step = 0
-
-    def invoke(self, messages: list) -> AIMessage:
-        print("   -> 🧠 [Oracle LLM] 大模型思考中 (Dev Mock 零成本模式)...")
-        self.step += 1
+def get_llm():
+    """获取通过环境变量配置的真实大模型，并绑定硬核工具"""
+    api_key = os.getenv("OPENAI_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    model_name = os.getenv("MODEL_NAME", "gpt-4o")
+    
+    if not api_key:
+        print("   -> ⚠️ [警告] 未配置 OPENAI_API_KEY！系统将退回演示模式，但由于移除了 Mock，可能会抛出异常。")
+        print("   -> 💡 [提示] 请在项目根目录创建 .env 文件，并填入 OPENAI_API_KEY。")
         
-        # 步骤 1：大模型观察到消息，决定调用泊松计算工具
-        if self.step == 1:
-            print("      💡 [LLM Thought] 发现比赛情报，我需要挂载 MCP 的计算胜负概率工具。")
-            return AIMessage(
-                content="", 
-                tool_calls=[{
-                    "name": "calculate_true_probs", 
-                    "args": {"home_xg": 1.5, "away_xg": 1.2}, 
-                    "id": "call_math_1"
-                }]
-            )
-        # 步骤 2：大模型收到了计算结果，决定调用风控工具
-        elif self.step == 2:
-            print("      💡 [LLM Thought] 概率已算完，申请进行风控审查。")
-            return AIMessage(
-                content="", 
-                tool_calls=[{
-                    "name": "verify_risk", 
-                    "args": {"proposed_stake_percent": 0.05, "home_prob": 0.45, "official_odds": 2.10}, 
-                    "id": "call_risk_2"
-                }]
-            )
-        # 步骤 3：大模型收到了风控通过的结果，决定调用路由工具出票
-        elif self.step == 3:
-            print("      💡 [LLM Thought] 风控审核通过！呼叫出票路由指挥官执行。")
-            return AIMessage(
-                content="", 
-                tool_calls=[{
-                    "name": "execute_ticket_route", 
-                    "args": {"home_prob": 0.45, "official_odds": 2.10}, 
-                    "id": "call_route_3"
-                }]
-            )
-        # 步骤 4：所有工具执行完毕，输出最终总结，跳出循环
-        else:
-            print("      💡 [LLM Thought] 所有工作完成，我将输出最终分析报告。")
-            return AIMessage(content="分析完毕。阿森纳今晚胜算可观，风控通过，MCP 工具链调用闭环已完成。")
-
-mock_llm = DevMockLLM()
+    llm = ChatOpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        model=model_name,
+        temperature=0.0 # 体育投资要求绝对理性和确定性，Temperature设为0
+    )
+    
+    # 彻底实现控制反转：将本地 Python 函数作为 Tools 绑定给大模型
+    return llm.bind_tools(tools)
 
 # ==========================================
 # 4. 定义节点 (Nodes)
 # ==========================================
 def llm_oracle_node(state: BettingState):
     """大脑节点：负责产生带有 tool_calls 的 AIMessage"""
-    response = mock_llm.invoke(state["messages"])
+    print("   -> 🧠 [Oracle LLM] 真实大模型正在思考和决策...")
+    llm = get_llm()
+    # 提取最新的上下文传递给 LLM
+    response = llm.invoke(state["messages"])
     return {"messages": [response]}
 
 def tool_executor_node(state: BettingState):
@@ -154,30 +134,34 @@ def should_continue(state: BettingState) -> Literal["tools", "end"]:
 # ==========================================
 # 6. 编译与运行图 (Compile Graph)
 # ==========================================
-def build_and_run_graph():
-    print("==================================================")
-    print("🌐 [Agentic OS] 启动基于真实 Tool Calling 的 MCP 架构图")
-    print("==================================================")
-    
-    # 模拟启动时动态发现 MCP 工具并挂载到大模型
+def compile_agentic_graph():
+    """编译并返回无状态的图对象，支持外部传入不同的初始状态(实现 Swarm 裂变)"""
     mcp = MCPToolDiscoverer()
     mcp.discover_tools()
     
     workflow = StateGraph(BettingState)
     
-    # 我们现在只有两个核心节点了：大脑(Oracle) 和 肢体(Tools)
     workflow.add_node("oracle", llm_oracle_node)
     workflow.add_node("tools", tool_executor_node)
     
-    # 定义控制流
     workflow.add_edge(START, "oracle")
     workflow.add_conditional_edges("oracle", should_continue, {"tools": "tools", "end": END})
-    workflow.add_edge("tools", "oracle")  # 工具执行完必须返回大脑复盘
+    workflow.add_edge("tools", "oracle")
     
-    app = workflow.compile()
+    return workflow.compile()
+
+def build_and_run_graph():
+    print("==================================================")
+    print("🌐 [Agentic OS] 启动基于真实 Tool Calling 的 MCP 架构图")
+    print("==================================================")
+    
+    app = compile_agentic_graph()
     
     initial_state = {
-        "messages": [HumanMessage(content="新情报：阿森纳今晚主力全出。竞彩主胜赔率 2.10。")],
+        "messages": [
+            SystemMessage(content="你是AI原生量化足球分析系统的核心大脑。你必须遵循：\n1. 调用 calculate_true_probs 计算概率。\n2. 调用 verify_risk 进行风控验证。\n3. 风控通过后调用 execute_ticket_route 出票。\n绝对不要自行编造赔率或概率！"),
+            HumanMessage(content="新情报：阿森纳今晚主力全出。竞彩主胜赔率 2.10。")
+        ],
         "match_context": "Arsenal Full Squad",
         "official_odds": 2.10,
         "risk_status": "PENDING",
