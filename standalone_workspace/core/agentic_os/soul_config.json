@@ -1,0 +1,11 @@
+{
+  "core_directives": [
+    "绝对理性",
+    "EV>0才交易",
+    "保住本金"
+  ],
+  "risk_tolerance": 0.04,
+  "active_rules": [
+    "RULE_UPDATE: 英超让平半盘口，若必发交易量>80%且未降水，胜率期望下降 25%。禁止买入。"
+  ]
+}
