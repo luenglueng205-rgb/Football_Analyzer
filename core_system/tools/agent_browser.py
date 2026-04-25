@@ -6,10 +6,10 @@ import json
 import re
 import os
 from typing import Any, Dict, List, Optional
-from ddgs import DDGS
-from tools.visual_browser import VisualBrowser
 from tools.domestic_500_fixtures import fetch_500_trade_html, parse_500_trade_fixtures_html
 from tools.network_gatekeeper import NetworkGatekeeper, NetworkPolicy
+
+_ddgs_cls = None
 
 def _env_bool(name: str, default: bool) -> bool:
     v = os.getenv(name)
@@ -25,6 +25,22 @@ def _looks_like_captcha(html: str) -> bool:
 def _sha1_ref(prefix: str, payload: Any) -> str:
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return f"{prefix}:{hashlib.sha1(encoded).hexdigest()[:12]}"
+
+
+def _build_visual_browser():
+    from tools.visual_browser import VisualBrowser
+
+    return VisualBrowser()
+
+
+def _build_ddgs():
+    global _ddgs_cls
+    if _ddgs_cls is None:
+        from ddgs import DDGS
+
+        _ddgs_cls = DDGS
+    return _ddgs_cls()
+
 
 def _run_async_sync(coro, timeout_s: float = 12.0):
     """
@@ -56,6 +72,7 @@ def _run_async_sync(coro, timeout_s: float = 12.0):
         raise err
     return result
 
+
 class AgentBrowser:
     """
     重构后的 AgentBrowser：不再写爬虫逻辑，而是将任务翻译为自然语言交给 VisualBrowser。
@@ -64,11 +81,16 @@ class AgentBrowser:
     def __init__(self, *, online: bool = False, policy: Optional[NetworkPolicy] = None):
         self.gatekeeper = NetworkGatekeeper(policy=policy, online=online)
         self.online = bool(self.gatekeeper.allow_network())
-        self.ddgs = DDGS() if self.online else None
+        self.ddgs = None
+        if self.online:
+            try:
+                self.ddgs = _build_ddgs()
+            except Exception:
+                self.ddgs = None
         self.visual = None
         try:
-            if self.online and VisualBrowser is not None:
-                self.visual = VisualBrowser()
+            if self.online:
+                self.visual = _build_visual_browser()
         except Exception:
             self.visual = None
 

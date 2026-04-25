@@ -1,92 +1,86 @@
-import os
+# -*- coding: utf-8 -*-
+"""
+Data Parser Agent — 非结构化文本 → 结构化 JSON
+=================================================
+
+通过 LLM 将爬取回来的中文新闻/评论等非结构化文本，
+提取为干净的 JSON 数据（伤停名单、赔率等）。
+
+集成 EventBus：parser.complete 事件。
+"""
+
 import json
+import logging
+import os
 from openai import AsyncOpenAI
 
+logger = logging.getLogger(__name__)
+
+
 class DataParserAgent:
-    """
-    P4 阶段：深度调优解析器 (Subagent)
-    专门用于将 AgentBrowser 爬取回来的非结构化中文文本（如懂球帝的新闻、澳客的评论）
-    强制清洗、结构化为干净的 JSON 数据。
-    """
+    """将非结构化文本解析为结构化 JSON"""
+
     def __init__(self):
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-        api_key = os.getenv("OPENAI_API_KEY", "dummy-key-for-test")
-        try:
-            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        except Exception as e:
+        api_key = os.getenv("DEEPSEEK_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+        if not api_key or api_key in {"dummy-key-for-test", "dummy_key", ""}:
             self.client = None
+        else:
+            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
     async def parse_injuries(self, team_name: str, raw_text: str) -> dict:
-        """
-        将杂乱的新闻文本提取为伤停名单 JSON
-        """
+        """从新闻文本提取伤停名单"""
         if not self.client:
-            return {"error": "Parser LLM client not initialized", "raw": raw_text}
+            return {"error": "Parser not initialized", "injuries": [], "raw": raw_text}
 
-        prompt = f"""
-你是一个专业的足球情报提取专家。
-请从以下给定的新闻文本中，提取出【{team_name}】的球员伤病和停赛情况。
-严格以 JSON 格式返回，格式如下：
-{{
-    "team": "{team_name}",
-    "injuries": [
-        {{"player": "球员A", "status": "伤缺", "reason": "大腿肌肉拉伤"}},
-        {{"player": "球员B", "status": "出战成疑", "reason": "生病"}}
-    ]
-}}
-如果文本中没有明确的伤停信息，请返回空的 injuries 列表。不要输出任何多余的解释。
-
-文本内容：
-{raw_text}
-"""
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={ "type": "json_object" }
-            )
-            content = response.choices[0].message.content
-            return json.loads(content)
-        except Exception as e:
-            print(f"[ParserAgent] Parse error: {e}")
-            return {"error": str(e), "raw": raw_text}
+        prompt = (
+            f"你是足球情报提取专家。从以下文本中提取【{team_name}】的伤病/停赛信息。\n"
+            '返回 JSON：{"team": "...", "injuries": [{"player": "名", "status": "伤缺/出战成疑", "reason": "..."}]}\n'
+            f"无信息则返回空列表。\n\n文本：{raw_text}"
+        )
+        return await self._json_parse(prompt, "injuries")
 
     async def parse_odds(self, home_team: str, away_team: str, raw_text: str) -> dict:
-        """
-        从非结构化文本（如搜索片段）中尝试提炼出欧赔、亚盘
-        """
+        """从非结构化文本提取赔率"""
         if not self.client:
-            return {"error": "Parser LLM client not initialized", "raw": raw_text}
+            return {"error": "Parser not initialized", "raw": raw_text}
 
-        prompt = f"""
-你是一个专业的博彩数据提取专家。
-请尝试从以下杂乱的文本片段中，提取出 {home_team} vs {away_team} 这场比赛的赔率和盘口数据。
-严格以 JSON 格式返回，如果找不到具体的数字，就返回 null。
-格式如下：
-{{
-    "match": "{home_team} vs {away_team}",
-    "odds": {{
-        "home_win": 2.15,
-        "draw": 3.20,
-        "away_win": 3.10
-    }},
-    "asian_handicap": "-0.25",
-    "summary": "从文本中提炼出的一句话分析结论"
-}}
+        prompt = (
+            f"你是博彩数据提取专家。从文本中提取 {home_team} vs {away_team} 的赔率。\n"
+            '返回 JSON：{"match": "...", "odds": {"home_win": null, "draw": null, "away_win": null}, '
+            '"asian_handicap": null, "summary": "一句话分析"}\n'
+            f"找不到具体数字就返回 null。\n\n文本：{raw_text}"
+        )
+        return await self._json_parse(prompt, "odds")
 
-文本内容：
-{raw_text}
-"""
+    # ── 内部工具 ────────────────────────────────────────────────────
+    async def _json_parse(self, prompt: str, task_type: str) -> dict:
+        """统一 JSON 解析调用 + EventBus 发布"""
         try:
-            response = await self.client.chat.completions.create(
+            resp = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                response_format={ "type": "json_object" }
+                response_format={"type": "json_object"},
             )
-            content = response.choices[0].message.content
-            return json.loads(content)
+            result = json.loads(resp.choices[0].message.content)
+        except json.JSONDecodeError:
+            result = {"error": "JSON parse failed", "raw": prompt[-200:]}
         except Exception as e:
-            print(f"[ParserAgent] Parse error: {e}")
-            return {"error": str(e), "raw": raw_text}
+            logger.warning("Parser [%s] error: %s", task_type, e)
+            result = {"error": str(e)}
 
+        # EventBus
+        await self._publish_event(task_type, result)
+        return result
+
+    async def _publish_event(self, task_type: str, result: dict):
+        try:
+            from core.event_bus import EventBus
+            bus = EventBus()
+            await bus.publish("parser.complete", {
+                "task_type": task_type,
+                "success": "error" not in result,
+            })
+        except Exception:
+            pass

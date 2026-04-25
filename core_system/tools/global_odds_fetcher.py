@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import logging
@@ -5,7 +6,14 @@ from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
-THE_ODDS_API_KEY = "fb47ab523dd9db967003590d76ec9074"
+# ⚠️  API Key 必须通过环境变量注入，禁止硬编码在源码中
+# 设置方法：export THE_ODDS_API_KEY="your_key_here"  或在 .env 文件中写入
+THE_ODDS_API_KEY = os.environ.get("THE_ODDS_API_KEY", "")
+if not THE_ODDS_API_KEY:
+    logger.warning(
+        "THE_ODDS_API_KEY 未设置。全局赔率获取将失败。"
+        "请在环境变量或 .env 文件中设置 THE_ODDS_API_KEY。"
+    )
 
 # Popular leagues mapped to The Odds API sport keys
 LEAGUE_MAP = {
@@ -30,6 +38,12 @@ def get_global_arbitrage_data(league: str, home_team: str, away_team: str) -> st
     Fetch live odds from global bookmakers (Pinnacle, Betfair, Bet365, etc.) using The Odds API.
     Provides data for Latency Arbitrage, Betfair Anomaly, and Kelly Variance analysis.
     """
+    if not THE_ODDS_API_KEY:
+        return json.dumps(
+            {"error": "THE_ODDS_API_KEY 未配置，无法获取全球赔率。请设置环境变量后重试。"},
+            ensure_ascii=False
+        )
+
     sport_key = LEAGUE_MAP.get(league)
     if not sport_key:
         # Fallback to searching a default set if league not found

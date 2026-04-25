@@ -30,3 +30,6 @@ class EnvironmentAnalyzer:
         adj_away_xg = away_xg * (1 + total_modifier)
         
         return round(max(0.1, adj_home_xg), 2), round(max(0.1, adj_away_xg), 2)
+
+# 别名：测试文件使用 UnstructuredFactorAnalyzer 名称
+UnstructuredFactorAnalyzer = EnvironmentAnalyzer

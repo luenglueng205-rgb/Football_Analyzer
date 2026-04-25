@@ -21,19 +21,45 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "../../../analyzer/football-lottery-analyzer"))
-from skills.lottery_math_engine import LotteryMathEngine
-from data_fetch.odds_scraper import OddsScraper
-from data_fetch.news_fetcher import NewsFetcher
-from data_fetch.get_today_offers import TodayOffersScraper
-
-class RealNewsFetcher(NewsFetcher):
-    def fetch_data(self): pass
-
-# 初始化工具单例
-odds_scraper = OddsScraper(config_file=None)
+from core_system.tools.math.lottery_math_engine import LotteryMathEngine
 math_engine = LotteryMathEngine()
-news_fetcher = RealNewsFetcher(config_file=None)
-offers_scraper = TodayOffersScraper()
+
+# ── data_fetch 懒加载（避免模块顶层 import 炸掉整个测试套件）─────────────
+_odds_scraper = None
+_news_fetcher = None
+_offers_scraper = None
+
+def _get_odds_scraper():
+    global _odds_scraper
+    if _odds_scraper is None:
+        try:
+            from data_fetch.odds_scraper import OddsScraper
+            _odds_scraper = OddsScraper(config_file=None)
+        except ImportError:
+            _odds_scraper = None
+    return _odds_scraper
+
+def _get_offers_scraper():
+    global _offers_scraper
+    if _offers_scraper is None:
+        try:
+            from data_fetch.get_today_offers import TodayOffersScraper
+            _offers_scraper = TodayOffersScraper()
+        except ImportError:
+            _offers_scraper = None
+    return _offers_scraper
+
+def _get_news_fetcher():
+    global _news_fetcher
+    if _news_fetcher is None:
+        try:
+            from data_fetch.news_fetcher import NewsFetcher
+            class RealNewsFetcher(NewsFetcher):
+                def fetch_data(self): pass
+            _news_fetcher = RealNewsFetcher(config_file=None)
+        except ImportError:
+            _news_fetcher = None
+    return _news_fetcher
 
 # =====================================================================
 # 原子化工具定义 (Atomic Tools for LLM)
@@ -51,6 +77,9 @@ def get_today_matches_list(lottery_type: str = "jingcai", date: str = None, limi
     :return: 包含当天赛事基本信息、单关支持情况(is_single)和基础赔率的 JSON 字符串
     """
     try:
+        offers_scraper = _get_offers_scraper()
+        if offers_scraper is None:
+            return json.dumps({"error": "data_fetch 模块未安装，无法获取当天赛事"}, ensure_ascii=False)
         matches = offers_scraper.get_today_offers(lottery_type)
         # 限制返回数量避免 token 超出，真实环境可能需要分页或过滤
         summary = {
@@ -72,6 +101,9 @@ def get_team_news_and_injuries(team_name: str) -> str:
     :return: 包含新闻列表和伤病名单的 JSON 字符串
     """
     try:
+        news_fetcher = _get_news_fetcher()
+        if news_fetcher is None:
+            return json.dumps({"error": "data_fetch 模块未安装，无法获取球队情报"}, ensure_ascii=False)
         # 在原子化版本中，我们直接调用底层库，不再绕过 HTTP API
         news = news_fetcher.fetch_team_news(team_name, limit=3)
         return json.dumps({
@@ -93,6 +125,9 @@ def get_live_odds_and_water_changes(home_team: str, away_team: str) -> str:
     :return: 包含初盘、即时盘、水位趋势的 JSON 字符串
     """
     try:
+        odds_scraper = _get_odds_scraper()
+        if odds_scraper is None:
+            return json.dumps({"error": "data_fetch 模块未安装，无法获取赔率数据"}, ensure_ascii=False)
         data = odds_scraper.fetch_live_odds(home_team, away_team)
         return json.dumps(data, ensure_ascii=False)
     except Exception as e:

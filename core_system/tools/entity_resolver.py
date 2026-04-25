@@ -1,7 +1,8 @@
 import hashlib
 import json
-import os
 from typing import Dict, Optional
+
+from tools.paths import data_dir
 
 
 class EntityResolver:
@@ -24,10 +25,8 @@ class EntityResolver:
         self._init_league_mapping()
 
     def _init_league_mapping(self) -> None:
-        here = os.path.dirname(os.path.abspath(__file__))
-        mapping_path = os.path.join(here, "..", "data", "league_mapping.json")
         try:
-            with open(mapping_path, "r", encoding="utf-8") as f:
+            with open(data_dir("league_mapping.json"), "r", encoding="utf-8") as f:
                 mapping = json.load(f)
         except Exception:
             mapping = {}

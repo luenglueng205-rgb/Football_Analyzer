@@ -9,6 +9,11 @@ import hashlib
 import math
 import re
 
+# ── Type 常量：统一写入/查询时的 metadata type 字段命名 ──────────────────────
+# ⚠️  写入方和查询方必须使用同一常量，否则 ChromaDB 的 where 过滤永远匹配不上
+MEMORY_TYPE_EPISODIC = "episodic"          # 通用情景记忆（战术洞察等）
+MEMORY_TYPE_HISTORICAL_MATCH = "historical_match"  # 带赔率的历史比赛记录
+
 
 class _EmbeddingFunctionAdapter:
     def __init__(self, embedding_function: Any):
@@ -195,19 +200,25 @@ class MemoryManager:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
-    def add_episodic_memory(self, content: str, tags: List[str], importance: float = 0.5):
+    def add_episodic_memory(self, content: str, tags: List[str], importance: float = 0.5,
+                             memory_type: str = MEMORY_TYPE_EPISODIC):
         """
         向系统的情景记忆库中添加一条历史赛事经验 (Massive Episodic Memory)
+
+        Args:
+            memory_type: 记忆类型，默认Episodic。
+                         若需让 query_historical_odds() 能检索到（含赔率的情景记忆），
+                         请传入 MEMORY_TYPE_HISTORICAL_MATCH。
         """
         try:
             import time
             doc_id = f"episodic_{int(time.time()*1000)}_{hash(content)}"
             
-            # 使用 ChromaDB 存储
+            # ✅ P0-3：统一使用常量，防止 type 字符串硬编码不一致
             self.collection.add(
                 documents=[content],
                 metadatas=[{
-                    "type": "episodic",
+                    "type": memory_type,
                     "importance": importance,
                     "tags": ",".join(tags)
                 }],
@@ -265,6 +276,10 @@ class MemoryManager:
         """
         [修复版] 精确数值过滤查询：彻底摒弃大模型对数字极度不敏感的语义向量查询。
         改用 ChromaDB 的结构化 Metadata 逻辑运算符 ($and, $gte, $lte) 进行硬逻辑区间匹配。
+
+        ✅ P0-3：type 过滤改用 $or，同时命中两类来源：
+          * add_historical_matches_batch() 写入的 "historical_match" 记录
+          * add_episodic_memory() 中传入 memory_type=HISTORICAL_MATCH 的情景记忆
         """
         try:
             # 构建容差区间
@@ -272,10 +287,15 @@ class MemoryManager:
             d_min, d_max = draw_odds * (1 - tolerance), draw_odds * (1 + tolerance)
             a_min, a_max = away_odds * (1 - tolerance), away_odds * (1 + tolerance)
             
-            # 使用 ChromaDB 强大的 Metadata 过滤语法
+            # ✅ P0-3：$or 匹配两种 type，消除写/查 type 不一致的查询死区
             where_clause = {
                 "$and": [
-                    {"type": {"$eq": "historical_match"}},
+                    {
+                        "$or": [
+                            {"type": {"$eq": MEMORY_TYPE_HISTORICAL_MATCH}},
+                            {"type": {"$eq": MEMORY_TYPE_EPISODIC}}   # 含赔率的Episodic记忆
+                        ]
+                    },
                     {"league": {"$eq": league}},
                     {"home_odds": {"$gte": h_min}},
                     {"home_odds": {"$lte": h_max}},
@@ -337,7 +357,7 @@ class MemoryManager:
                 documents.append(doc_text)
                 
                 metadatas.append({
-                    "type": "historical_match",
+                    "type": MEMORY_TYPE_HISTORICAL_MATCH,
                     "league": m.get("league", "UNK"),
                     "home_odds": float(m.get("home_odds", 1.0)),
                     "draw_odds": float(m.get("draw_odds", 1.0)),

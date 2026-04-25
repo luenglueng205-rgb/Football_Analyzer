@@ -35,3 +35,6 @@ class PlayerXgAdjuster:
         
         adjusted_xg = base_xg * (1.0 - total_decay_penalty)
         return round(max(0.1, adjusted_xg), 2)
+
+# 别名：测试文件使用 PlayerImpactAdjuster 名称
+PlayerImpactAdjuster = PlayerXgAdjuster

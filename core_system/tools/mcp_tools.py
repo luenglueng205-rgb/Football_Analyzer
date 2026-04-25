@@ -18,7 +18,8 @@ from tools.qrcode_ticket_generator import generate_ticket_qr
 from tools.notification_dispatcher import dispatch_notification
 from tools.memory_manager import MemoryManager
 from tools.clawhub_registry import ClawHubRegistry
-from skills.lottery_math_engine import LotteryMathEngine
+from tools.historical_db_loader import get_historical_database
+from core_system.tools.math.lottery_math_engine import LotteryMathEngine
 import os
 
 _ledger = BettingLedger()
@@ -179,9 +180,11 @@ def get_match_result(match_id: str) -> Dict[str, Any]:
     """
     通过模糊匹配 match_id（例如：主队vs客队 或 球队名）查询历史数据库中的比赛结果。
     """
-    from data.historical_database import get_historical_database
     db = get_historical_database(lazy_load=True)
-    matches = db.raw_data().get("data", [])
+    raw_data = getattr(db, "raw_data", {})
+    if callable(raw_data):
+        raw_data = raw_data()
+    matches = raw_data.get("data", []) if isinstance(raw_data, dict) else raw_data if isinstance(raw_data, list) else []
     
     found = []
     for match in matches:

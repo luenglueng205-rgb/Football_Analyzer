@@ -410,9 +410,9 @@ async def _cli_printer(event: Dict[str, Any]) -> None:
 if __name__ == "__main__":
     async def _main() -> None:
         bus = EventBus()
-        bus.subscribe("ODDS_TICK", _cli_printer)
-        bus.subscribe("ODDS_ALERT", _cli_printer)
-        bus.subscribe("ODDS_UNAVAILABLE", _cli_printer)
+        await bus.subscribe("ODDS_TICK", _cli_printer)
+        await bus.subscribe("ODDS_ALERT", _cli_printer)
+        await bus.subscribe("ODDS_UNAVAILABLE", _cli_printer)
         d = RealTimeOddsDaemon("match_1024", "曼城", "切尔西", bus=bus)
         try:
             await d.run_forever()

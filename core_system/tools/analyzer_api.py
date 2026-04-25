@@ -118,7 +118,11 @@ class AnalyzerAPI:
         """获取球队实时新闻"""
         res = AnalyzerAPI.get_live_news_protocol(team_name=team_name, limit=limit)
         if res.get("ok"):
-            return res.get("data", {}).get("articles", [])
+            data = res.get("data")
+            if isinstance(data, dict):
+                return data.get("articles", [])
+            if isinstance(data, list):
+                return data
         return []
 
     @staticmethod
@@ -126,7 +130,11 @@ class AnalyzerAPI:
         """获取球队实时伤停情报"""
         res = AnalyzerAPI.get_live_injuries_protocol(team_name=team_name)
         if res.get("ok"):
-            return res.get("data", {}).get("injuries", [])
+            data = res.get("data")
+            if isinstance(data, dict):
+                return data.get("injuries", [])
+            if isinstance(data, list):
+                return data
         return []
 
     @staticmethod
@@ -214,7 +222,7 @@ class AnalyzerAPI:
             response.raise_for_status()
             return {
                 "ok": True,
-                "data": response.json().get("injuries", []),
+                "data": {"injuries": response.json().get("injuries", [])},
                 "error": None,
                 "meta": {"mock": False, "source": "analyzer_api_http", "confidence": 0.7, "stale": False},
             }
@@ -230,7 +238,7 @@ class AnalyzerAPI:
             response.raise_for_status()
             return {
                 "ok": True,
-                "data": response.json().get("articles", []),
+                "data": {"articles": response.json().get("articles", [])},
                 "error": None,
                 "meta": {"mock": False, "source": "analyzer_api_http", "confidence": 0.7, "stale": False},
             }
