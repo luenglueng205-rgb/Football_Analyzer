@@ -80,7 +80,7 @@ class DigitalLifeDaemon:
         
         initial_state = {
             "messages": [
-                SystemMessage(content="你是专注英超的激进派量化分析师。执行SOP：1. 计算真实概率。2. 过风控。3. 路由出票。"),
+                SystemMessage(content="你是专注英超的激进派量化分析师。执行SOP：1. 计算真实概率。2. 过风控。3. 必须调用 check_balance 查询资金。4. 根据资金按10%仓位调用 execute_ticket_route 路由出票。"),
                 HumanMessage(content=f"新情报：{prey_data['context']}。主胜赔率 {prey_data['odds']}。主队预期进球 {prey_data['xg']['home']}，客队 {prey_data['xg']['away']}。")
             ],
             "match_context": prey_data["context"],
@@ -90,7 +90,7 @@ class DigitalLifeDaemon:
         }
         
         try:
-            for output in self.brain_app.stream(initial_state, {"recursion_limit": 10}):
+            for output in self.brain_app.stream(initial_state, {"recursion_limit": 30}):
                 pass
             logger.info("   -> ✅ [Execution] 猎杀完成，大脑重新进入休眠状态。")
             

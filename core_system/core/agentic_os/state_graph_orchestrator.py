@@ -2,6 +2,7 @@ from typing import Annotated, TypedDict, List, Dict, Any, Literal
 import operator
 import json
 import os
+import time
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langgraph.graph import StateGraph, END, START
@@ -18,6 +19,7 @@ from core_system.agents.grandmaster_router import GrandmasterRouter
 from core_system.core.agentic_os.hallucination_guard import HallucinationGuard
 from core_system.tools.mcp_discoverer import MCPToolDiscoverer
 from core_system.core.agentic_os.hippocampus import HippocampusMemory
+from core_system.tools.betting_ledger import BettingLedger
 
 # ==========================================
 # 1. 定义工具 (LangChain @tool 配合 MCP 概念)
@@ -26,6 +28,7 @@ math_engine = HardcoreQuantMath()
 guard = HallucinationGuard()
 router = GrandmasterRouter()
 hippo_memory = HippocampusMemory()
+ledger = BettingLedger()
 
 @tool
 def calculate_true_probs(home_xg: float, away_xg: float) -> dict:
@@ -39,11 +42,32 @@ def verify_risk(proposed_stake_percent: float, home_prob: float, official_odds: 
     return guard.verify_llm_output(mock_llm_proposal, official_odds)
 
 @tool
-def execute_ticket_route(home_prob: float, official_odds: float) -> str:
-    """将验证通过的赛事交由顶级指挥官进行实盘出票路由。"""
-    return router.dispatch_matches({}, {"home_win": home_prob}, {"jingcai_odds": {"home_win": official_odds}})
+def check_balance() -> dict:
+    """检查Agent当前的资金余额和下注历史。在做出出票决策前可以调用此工具确认资金是否充足。"""
+    return ledger.check_bankroll(agent_id="agentic_os")
 
-tools = [calculate_true_probs, verify_risk, execute_ticket_route]
+@tool
+def execute_ticket_route(home_prob: float, official_odds: float, stake: float) -> str:
+    """将验证通过的赛事交由顶级指挥官进行实盘出票路由，并从账本中扣除本金。必须传入决定的下注金额 stake。"""
+    # 1. 先进行账本扣款
+    bet_result = ledger.execute_bet(
+        agent_id="agentic_os",
+        match_id=f"MATCH_{int(time.time())}", # 模拟一个比赛ID
+        lottery_type="jingcai",
+        selection="home_win",
+        odds=official_odds,
+        stake=stake
+    )
+    
+    if bet_result.get("status") == "error":
+        return f"[ROUTE_REJECTED] 出票失败: {bet_result.get('message')}。请检查资金余额或降低下注金额。"
+        
+    # 2. 扣款成功后，进行物理路由分发
+    dispatch_msg = router.dispatch_matches({}, {"home_win": home_prob}, {"jingcai_odds": {"home_win": official_odds}})
+    
+    return f"【账本扣款成功】凭证: {bet_result.get('ticket_code')} | 余额剩余: ${bet_result.get('remaining_balance', 0):.2f}\n【路由结果】: {dispatch_msg}"
+
+tools = [calculate_true_probs, verify_risk, check_balance, execute_ticket_route]
 tool_map = {t.name: t for t in tools}
 
 # ==========================================
@@ -128,6 +152,7 @@ def tool_executor_node(state: BettingState):
     """四肢节点：通用工具执行器 (完全接管所有的 tool_calls)"""
     last_msg = state["messages"][-1]
     results = []
+    state_updates = {}
     
     # 遍历 LLM 指定要调用的所有工具
     for tool_call in last_msg.tool_calls:
@@ -144,13 +169,14 @@ def tool_executor_node(state: BettingState):
         
         # 业务字段状态更新（可选，为了让前端UI更容易读取状态）
         if tool_call["name"] == "calculate_true_probs":
-            return {"messages": results, "true_probs": output}
-        if tool_call["name"] == "verify_risk":
-            return {"messages": results, "risk_status": output["status"], "verified_ev": output.get("verified_ev", 0.0)}
-        if tool_call["name"] == "execute_ticket_route":
-            return {"messages": results, "execution_route": output}
+            state_updates["true_probs"] = output
+        elif tool_call["name"] == "verify_risk":
+            state_updates["risk_status"] = output["status"]
+            state_updates["verified_ev"] = output.get("verified_ev", 0.0)
+        elif tool_call["name"] == "execute_ticket_route":
+            state_updates["execution_route"] = output
             
-    return {"messages": results}
+    return {"messages": results, **state_updates}
 
 # ==========================================
 # 5. 定义条件路由边 (Conditional Edge) - 控制反转核心
@@ -158,6 +184,12 @@ def tool_executor_node(state: BettingState):
 def should_continue(state: BettingState) -> Literal["tools", "end"]:
     """判断大模型是否发起了工具调用"""
     last_msg = state["messages"][-1]
+    
+    # 强制防死循环阻断：只要历史中成功执行过出票工具，必须强制结束图流转
+    for msg in reversed(state["messages"]):
+        if getattr(msg, "name", None) == "execute_ticket_route":
+            return "end"
+
     # 如果 LLM 的回复里包含 tool_calls，则流向 "tools" 节点
     if getattr(last_msg, "tool_calls", None):
         return "tools"
@@ -206,7 +238,7 @@ def build_and_run_graph():
         "true_probs": {}
     }
     
-    for output in app.stream(initial_state, {"recursion_limit": 10}):
+    for output in app.stream(initial_state, {"recursion_limit": 30}):
         pass
 
 if __name__ == "__main__":

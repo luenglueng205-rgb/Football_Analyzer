@@ -46,8 +46,9 @@ SWARM_AGENTS = {
 执行SOP：
 1. 提取情报，调用 calculate_true_probs 计算泊松分布概率。
 2. 调用 verify_risk 进行风控（即便你是激进派，也必须过风控）。
-3. 如果风控通过，调用 execute_ticket_route 进行出票路由。
-4. 如果不是英超赛事，直接拒绝交易，并输出"非英超赛事，拒绝执行"。
+3. 必须调用 check_balance 检查当前可用资金。
+4. 如果风控通过，激进地使用可用资金的 10% 作为下注金额 (stake)，调用 execute_ticket_route 进行出票路由。
+5. 如果不是英超赛事，直接拒绝交易，并输出"非英超赛事，拒绝执行"。
 """,
     "【绝对保守派 (Conservative Vault)】": """
 你是极其保守的银行家级别量化分析师。
@@ -55,7 +56,8 @@ SWARM_AGENTS = {
 执行SOP：
 1. 调用 calculate_true_probs 获得胜率。
 2. 调用 verify_risk 时，你的心理门槛极高。
-3. 必须风控完全通过，才能调用 execute_ticket_route 出票。
+3. 必须调用 check_balance 检查当前资金。
+4. 必须风控完全通过，才能调用 execute_ticket_route 出票，且固定下注金额 (stake) 为极度保守的 50 USDC。
 任何微小的伤停情报如果不利于主队，立刻拒绝交易。
 """
 }
@@ -96,7 +98,7 @@ def run_stress_test():
             # 运行状态机
             try:
                 final_output = None
-                for output in app.stream(initial_state, {"recursion_limit": 10}):
+                for output in app.stream(initial_state, {"recursion_limit": 30}):
                     final_output = output
                 
                 # 获取最后一条大模型的回复
