@@ -117,6 +117,9 @@ class SearchNewsArgs(BaseModel):
 class FetchArbitrageNewsArgs(BaseModel):
     team_name: str = Field(..., description="要监听和获取新闻的球队名称 (如 'Arsenal')")
 
+class ExecuteQuantScriptArgs(BaseModel):
+    code: str = Field(..., description="完整的、可独立运行的 Python 脚本代码。注意：代码不能包含任何网络请求或系统级破坏操作。")
+
 class PoissonArgs(BaseModel):
     home_xg: float = Field(..., description="主队 xG")
     away_xg: float = Field(..., description="客队 xG")
@@ -243,19 +246,27 @@ class ToolDefinition:
 def _data_gateway_fetch_match(date: str, lottery_type: str = "JINGCAI"):
     """通过 DataGateway 获取赛程数据"""
     try:
-        from core.data_gateway import DataGateway
+        from core_system.core.data_gateway import DataGateway
         gw = DataGateway()
-        return gw.get_fixtures(date=date, lottery_type=lottery_type)
+        # 修复: DataGateway 真实方法为 get_today_fixtures_sync
+        return gw.get_today_fixtures_sync(lottery_type=lottery_type)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def _data_gateway_fetch_odds(league: str, home_team: str, away_team: str):
-    """通过 DataGateway 获取赔率"""
+    """通过 DataGateway 获取赔率 (包含实体消歧转换)"""
     try:
-        from core.data_gateway import DataGateway
+        from core_system.core.data_gateway import DataGateway
+        from tools.entity_resolver import resolver
+        
         gw = DataGateway()
-        return gw.get_odds(home_team=home_team, away_team=away_team, league=league)
+        
+        # 1. 实体消歧：将不规范的队名模糊匹配，转为标准的 match_id 格式
+        resolved_match_id = resolver.resolve_match_id(home_team, away_team)
+        print(f"   -> 🔤 [Entity Resolver] 球队名解析完成: {home_team} vs {away_team} -> {resolved_match_id}")
+        
+        return gw.get_match_odds(match_id=resolved_match_id)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -263,9 +274,15 @@ def _data_gateway_fetch_odds(league: str, home_team: str, away_team: str):
 def _data_gateway_fetch_standings(league: str):
     """通过 DataGateway 获取积分榜"""
     try:
-        from core.data_gateway import DataGateway
+        from core_system.core.data_gateway import DataGateway
+        from tools.entity_resolver import resolver
+        
         gw = DataGateway()
-        return gw.get_standings(league=league)
+        
+        # 1. 实体消歧：模糊匹配联赛名，获取整型 ID
+        league_id = resolver.resolve_league_id(league)
+        
+        return gw.get_standings(league_id=league_id, season=2023)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -274,6 +291,11 @@ def _fetch_arbitrage_news(team_name: str):
     from core_system.skills.news_arbitrage.social_listener import SocialNewsListener
     listener = SocialNewsListener(use_mock=True)
     return listener.fetch_latest_news(team_name)
+
+def _execute_quant_script(code: str):
+    """隔离环境执行量化代码"""
+    from core_system.skills.code_interpreter.server import execute_quant_script
+    return execute_quant_script(code)
 
 # ── 注册表 ───────────────────────────────────────────────────────────────
 
@@ -302,6 +324,10 @@ _TOOLS: List[ToolDefinition] = [
     ToolDefinition(
         "fetch_arbitrage_news", "获取毫秒级最新突发新闻或社交媒体情报。用于捕捉赔率变动前的信息差。",
         FetchArbitrageNewsArgs, _fetch_arbitrage_news,
+    ),
+    ToolDefinition(
+        "execute_quant_script", "在隔离的沙箱环境中执行 Python 量化回测或数据分析代码。支持 pandas, scikit-learn, numpy。",
+        ExecuteQuantScriptArgs, _execute_quant_script,
     ),
 
     # ─── 分析计算 (7) ─────────────────────────────────────────────────

@@ -70,11 +70,17 @@ def execute_ticket_route(home_prob: float, official_odds: float, stake: float) -
     return f"【账本扣款成功】凭证: {bet_result.get('ticket_code')} | 余额剩余: ${bet_result.get('remaining_balance', 0):.2f}\n【路由结果】: {dispatch_msg}"
 
 @tool
+def execute_quant_script(code: str) -> dict:
+    """在隔离的沙箱环境中执行 Python 量化回测或数据分析代码。支持 pandas, scikit-learn, numpy。遇到不确定的数学计算时可以使用此工具进行自证。"""
+    from core_system.skills.code_interpreter.server import execute_quant_script as run_code
+    return run_code(code)
+
+@tool
 def fetch_arbitrage_news(team_name: str) -> dict:
     """毫秒级新闻套利监听器：获取球队最新突发新闻（如伤停、内幕）。用于在庄家变盘前捕捉信息差并调整 xG 预期。"""
     return news_listener.fetch_latest_news(team_name)
 
-tools = [calculate_true_probs, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news]
+tools = [calculate_true_probs, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script]
 tool_map = {t.name: t for t in tools}
 
 # ==========================================
@@ -92,6 +98,7 @@ class BettingState(TypedDict):
     risk_tolerance: float  # 从海马体读取的全局风险容忍度
     historical_lessons: str # 从海马体召回的相似赛事教训
     is_high_value: bool # 是否为高价值赛事 (触发 MCTS)
+    debate_done: bool # 标记是否已经完成多空辩论，防止死循环
 
 # ==========================================
 # 3. 配置真实的大模型 (Real LLM) - 通过 .env 配置
@@ -201,12 +208,42 @@ def memory_retrieval_node(state: BettingState):
     return {"risk_tolerance": risk_tolerance, "historical_lessons": str(truths)}
 
 def llm_oracle_node(state: BettingState):
-    """大脑节点：负责产生带有 tool_calls 的 AIMessage"""
-    print("   -> 🧠 [Oracle LLM] 真实大模型正在思考和决策...")
+    """大脑节点：混合智能体辩论 (Mixture-of-Agents Debate) 及最终裁决"""
+    print("   -> 🧠 [MoA Judge] 红蓝军法官正在进行最终的分析与工具调度...")
+    
+    # 1. 触发红蓝军对抗机制 (如果处于 MCTS 高价值模式下)
+    # 这里通过 Prompt 内部化实现简单的多空博弈，避免图结构膨胀导致断层
+    if state.get("is_high_value") and not state.get("debate_done", False):
+        print("   -> 🔴🔵 [MoA Debate] 触发红蓝军对抗，提取极端多空观点...")
+        base_llm = get_base_llm()
+        context_msg = state["messages"][-1]
+        
+        try:
+            # Bull (多头)
+            bull_prompt = SystemMessage(content="你是极端多头分析师。请只看利好，忽略风险，给我3个必须下注主队的绝对理由。")
+            bull_res = base_llm.invoke([bull_prompt, context_msg])
+            
+            # Bear (空头)
+            bear_prompt = SystemMessage(content="你是极端空头风控官。请只看利空，挑刺找茬，给我3个绝对不能下注主队的致命隐患。")
+            bear_res = base_llm.invoke([bear_prompt, context_msg])
+            
+            debate_summary = (
+                f"【🔴 多头观点 (Bull)】\n{bull_res.content}\n\n"
+                f"【🔵 空头观点 (Bear)】\n{bear_res.content}\n\n"
+                f"请作为大法官 (Judge)，综合以上双方观点，结合你的工具库进行最后验证（风控、资金）并决定是否出票。"
+            )
+            state["messages"].append(SystemMessage(content=debate_summary))
+            # 标记辩论已完成，防止在下一次工具返回后死循环辩论
+            state["debate_done"] = True
+            
+        except Exception as e:
+            print(f"   -> ⚠️ [MoA Debate] 辩论节点 API 异常，降级回退至单体决策: {e}")
+
+    # 2. 最终裁决 (绑定了 Tools 的主 LLM)
     llm = get_llm()
-    # 提取最新的上下文传递给 LLM
     response = llm.invoke(state["messages"])
-    return {"messages": [response]}
+    
+    return {"messages": [response], "debate_done": state.get("debate_done", False)}
 
 def tool_executor_node(state: BettingState):
     """四肢节点：通用工具执行器 (完全接管所有的 tool_calls)"""
