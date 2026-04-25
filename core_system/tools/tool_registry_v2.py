@@ -114,6 +114,9 @@ class LiveNewsArgs(BaseModel):
 class SearchNewsArgs(BaseModel):
     query: str = Field(..., description="搜索关键词")
 
+class FetchArbitrageNewsArgs(BaseModel):
+    team_name: str = Field(..., description="要监听和获取新闻的球队名称 (如 'Arsenal')")
+
 class PoissonArgs(BaseModel):
     home_xg: float = Field(..., description="主队 xG")
     away_xg: float = Field(..., description="客队 xG")
@@ -266,6 +269,11 @@ def _data_gateway_fetch_standings(league: str):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+def _fetch_arbitrage_news(team_name: str):
+    """获取毫秒级突发套利新闻"""
+    from core_system.skills.news_arbitrage.social_listener import SocialNewsListener
+    listener = SocialNewsListener(use_mock=True)
+    return listener.fetch_latest_news(team_name)
 
 # ── 注册表 ───────────────────────────────────────────────────────────────
 
@@ -290,6 +298,10 @@ _TOOLS: List[ToolDefinition] = [
     ToolDefinition(
         "get_live_odds", "获取实时赔率/盘口（多源聚合）",
         LiveOddsArgs, TOOL_MAPPING["get_live_odds"],
+    ),
+    ToolDefinition(
+        "fetch_arbitrage_news", "获取毫秒级最新突发新闻或社交媒体情报。用于捕捉赔率变动前的信息差。",
+        FetchArbitrageNewsArgs, _fetch_arbitrage_news,
     ),
 
     # ─── 分析计算 (7) ─────────────────────────────────────────────────

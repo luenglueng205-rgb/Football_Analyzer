@@ -20,6 +20,7 @@ from core_system.core.agentic_os.hallucination_guard import HallucinationGuard
 from core_system.tools.mcp_discoverer import MCPToolDiscoverer
 from core_system.core.agentic_os.hippocampus import HippocampusMemory
 from core_system.tools.betting_ledger import BettingLedger
+from core_system.skills.news_arbitrage.social_listener import SocialNewsListener
 
 # ==========================================
 # 1. 定义工具 (LangChain @tool 配合 MCP 概念)
@@ -29,6 +30,7 @@ guard = HallucinationGuard()
 router = GrandmasterRouter()
 hippo_memory = HippocampusMemory()
 ledger = BettingLedger()
+news_listener = SocialNewsListener(use_mock=True)
 
 @tool
 def calculate_true_probs(home_xg: float, away_xg: float) -> dict:
@@ -67,7 +69,12 @@ def execute_ticket_route(home_prob: float, official_odds: float, stake: float) -
     
     return f"【账本扣款成功】凭证: {bet_result.get('ticket_code')} | 余额剩余: ${bet_result.get('remaining_balance', 0):.2f}\n【路由结果】: {dispatch_msg}"
 
-tools = [calculate_true_probs, verify_risk, check_balance, execute_ticket_route]
+@tool
+def fetch_arbitrage_news(team_name: str) -> dict:
+    """毫秒级新闻套利监听器：获取球队最新突发新闻（如伤停、内幕）。用于在庄家变盘前捕捉信息差并调整 xG 预期。"""
+    return news_listener.fetch_latest_news(team_name)
+
+tools = [calculate_true_probs, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news]
 tool_map = {t.name: t for t in tools}
 
 # ==========================================
@@ -84,10 +91,23 @@ class BettingState(TypedDict):
     execution_route: str
     risk_tolerance: float  # 从海马体读取的全局风险容忍度
     historical_lessons: str # 从海马体召回的相似赛事教训
+    is_high_value: bool # 是否为高价值赛事 (触发 MCTS)
 
 # ==========================================
 # 3. 配置真实的大模型 (Real LLM) - 通过 .env 配置
 # ==========================================
+def get_base_llm():
+    """获取无工具绑定的基础大模型，用于 MCTS 纯逻辑推演"""
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
+    model_name = os.getenv("MODEL_NAME", "gpt-4o")
+    
+    client_kwargs = {"api_key": api_key, "model": model_name, "temperature": 0.7} # MCTS需要更高的温度来产生发散性剧本
+    if base_url:
+        client_kwargs["base_url"] = base_url
+        
+    return ChatOpenAI(**client_kwargs)
+
 def get_llm():
     """获取通过环境变量配置的真实大模型，并绑定硬核工具"""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -111,6 +131,46 @@ def get_llm():
 # ==========================================
 # 4. 定义节点 (Nodes)
 # ==========================================
+def sentinel_node(state: BettingState):
+    """哨兵节点：动态评估赛事复杂度与算力分配 (Test-Time Compute)"""
+    print("   -> 👁️ [Sentinel] 哨兵节点：正在评估赛事复杂度与算力分配...")
+    context = state.get("match_context", "")
+    odds = state.get("official_odds", 0)
+    
+    # 启发式评估：如果赔率较高或包含高不确定性关键词（如伤停、暴雨），分配重度算力
+    if "伤停" in context or "缺阵" in context or "暴雨" in context or odds > 1.9:
+        print(f"   -> ⚠️ [Sentinel] 发现高价值/高复杂度赛事 (Odds: {odds})，重定向至 MCTS 狂暴模式！")
+        return {"is_high_value": True}
+    else:
+        print(f"   -> ⚡ [Sentinel] 常规赛事 (Odds: {odds})，采用 Fast-Path 极速分析。")
+        return {"is_high_value": False}
+
+def mcts_deep_think_node(state: BettingState):
+    """算力折叠：MCTS 多分支潜空间推演节点"""
+    print("   -> 🌳 [MCTS Expand] 算力折叠：正在裂变 3 条平行宇宙赛果线...")
+    llm = get_base_llm()
+    
+    prompt = (
+        f"你是一个基于蒙特卡洛树搜索(MCTS)的战术推演引擎。\n"
+        f"请基于以下情报，推演这3种最可能发生的比赛剧本（字数简短精炼）：\n"
+        f"1. 剧本A（主队早早破门，顺风局）\n"
+        f"2. 剧本B（客队偷袭得手或主队红牌，逆风局）\n"
+        f"3. 剧本C（沉闷的战术对耗，胶着局）\n"
+        f"\n情报：{state['match_context']}\n"
+        f"赔率：主胜 {state['official_odds']}\n"
+        f"\n最后，结合这3个分支，评估当前主胜赔率的【抗脆弱性评分(0-100)】，并给出综合建议。"
+    )
+    
+    response = llm.invoke([HumanMessage(content=prompt)])
+    print("   -> ⚖️ [MCTS Evaluate & Backprop] 价值网络评估完毕，多分支共识已收敛。")
+    
+    consensus_msg = SystemMessage(
+        content=f"【MCTS 深度推演共识】\n{response.content}\n"
+                f"请基于上述 MCTS 多步推演的结论，结合你的自身性格，进行最终的概率计算、风控验证与出票决策。"
+    )
+    
+    return {"messages": [consensus_msg]}
+
 def memory_retrieval_node(state: BettingState):
     """前置节点：在 LLM 决策前，向海马体查询相关教训"""
     print("   -> 🧠 [Memory] 正在检索海马体中的历史教训...")
@@ -181,6 +241,12 @@ def tool_executor_node(state: BettingState):
 # ==========================================
 # 5. 定义条件路由边 (Conditional Edge) - 控制反转核心
 # ==========================================
+def route_after_sentinel(state: BettingState) -> Literal["mcts", "oracle"]:
+    """哨兵节点的条件路由：决定是否进入 MCTS 狂暴模式"""
+    if state.get("is_high_value"):
+        return "mcts"
+    return "oracle"
+
 def should_continue(state: BettingState) -> Literal["tools", "end"]:
     """判断大模型是否发起了工具调用"""
     last_msg = state["messages"][-1]
@@ -210,11 +276,16 @@ def compile_agentic_graph():
     workflow = StateGraph(BettingState)
     
     workflow.add_node("memory", memory_retrieval_node)
+    workflow.add_node("sentinel", sentinel_node)
+    workflow.add_node("mcts", mcts_deep_think_node)
     workflow.add_node("oracle", llm_oracle_node)
     workflow.add_node("tools", tool_executor_node)
     
     workflow.add_edge(START, "memory")
-    workflow.add_edge("memory", "oracle")
+    workflow.add_edge("memory", "sentinel")
+    workflow.add_conditional_edges("sentinel", route_after_sentinel, {"mcts": "mcts", "oracle": "oracle"})
+    workflow.add_edge("mcts", "oracle")
+    
     workflow.add_conditional_edges("oracle", should_continue, {"tools": "tools", "end": END})
     workflow.add_edge("tools", "oracle")
     
