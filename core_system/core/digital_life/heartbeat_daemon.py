@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from core_system.core.agentic_os.state_graph_orchestrator import compile_agentic_graph
+from core_system.core.agentic_os.hippocampus import HippocampusMemory
 
 # 配置生命体日志系统 (输出到归档目录，防止污染)
 LOG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../core_system/artifacts/reports/daemon_heartbeat.log"))
@@ -35,6 +36,8 @@ class DigitalLifeDaemon:
         self.interval_seconds = interval_seconds
         self.is_alive = False
         self.brain_app = compile_agentic_graph()
+        self.hippo = HippocampusMemory()
+        self.last_consolidation_date = None
         
         # 注册平滑退出信号 (接收到 kill 命令时优雅死亡)
         signal.signal(signal.SIGINT, self._graceful_shutdown)
@@ -90,6 +93,16 @@ class DigitalLifeDaemon:
             for output in self.brain_app.stream(initial_state, {"recursion_limit": 10}):
                 pass
             logger.info("   -> ✅ [Execution] 猎杀完成，大脑重新进入休眠状态。")
+            
+            # 【记忆写入】: 将本次交易记入海马体日记本
+            # 备注：实盘中真实盈亏需要在赛后获取，此处先写入预测环境的快照
+            self.hippo.record_episode(
+                match_id=prey_data["match_id"],
+                action="ANALYZE", 
+                pnl=0, 
+                context_snapshot={"league": "英超", "odds": prey_data["odds"]}
+            )
+            
         except Exception as e:
             logger.error(f"   -> ❌ [Error] 神经元短路，处理失败: {e}")
 
@@ -103,8 +116,15 @@ class DigitalLifeDaemon:
 
         loops = 0
         while self.is_alive:
-            logger.info(f"💓 [Pulse] 心跳正常... (当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
+            now = datetime.now()
+            logger.info(f"💓 [Pulse] 心跳正常... (当前时间: {now.strftime('%Y-%m-%d %H:%M:%S')})")
             
+            # 【夜间生物钟】: 每天凌晨 3 点，海马体进行深度休眠与记忆重塑
+            if now.hour == 3 and self.last_consolidation_date != now.date():
+                logger.info("   -> 🌙 [Circadian Rhythm] 触发夜间生物钟，开始反思今日得失...")
+                self.hippo.sleep_and_consolidate()
+                self.last_consolidation_date = now.date()
+
             # 1. 感知外部世界
             prey = self._perceive_environment()
             

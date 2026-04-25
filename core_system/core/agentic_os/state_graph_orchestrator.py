@@ -12,11 +12,12 @@ from langchain_openai import ChatOpenAI
 load_dotenv()
 
 # 引入我们写好的硬核本地工具
-from core_system.skills.hardcore_quant_math import HardcoreQuantMath
-from core_system.skills.chinese_lottery_official_calc import ChineseLotteryOfficialCalculator
-from core_system.core.grandmaster_router import GrandmasterRouter
+from core_system.tools.math.hardcore_quant_math import HardcoreQuantMath
+from core_system.tools.math.chinese_lottery_official_calc import ChineseLotteryOfficialCalculator
+from core_system.agents.grandmaster_router import GrandmasterRouter
 from core_system.core.agentic_os.hallucination_guard import HallucinationGuard
-from core_system.core.agentic_os.mcp_tool_discoverer import MCPToolDiscoverer
+from core_system.tools.mcp_discoverer import MCPToolDiscoverer
+from core_system.core.agentic_os.hippocampus import HippocampusMemory
 
 # ==========================================
 # 1. 定义工具 (LangChain @tool 配合 MCP 概念)
@@ -24,6 +25,7 @@ from core_system.core.agentic_os.mcp_tool_discoverer import MCPToolDiscoverer
 math_engine = HardcoreQuantMath()
 guard = HallucinationGuard()
 router = GrandmasterRouter()
+hippo_memory = HippocampusMemory()
 
 @tool
 def calculate_true_probs(home_xg: float, away_xg: float) -> dict:
@@ -56,6 +58,8 @@ class BettingState(TypedDict):
     verified_ev: float
     risk_status: str # "PENDING", "APPROVED", "REJECTED"
     execution_route: str
+    risk_tolerance: float  # 从海马体读取的全局风险容忍度
+    historical_lessons: str # 从海马体召回的相似赛事教训
 
 # ==========================================
 # 3. 配置真实的大模型 (Real LLM) - 通过 .env 配置
@@ -83,6 +87,35 @@ def get_llm():
 # ==========================================
 # 4. 定义节点 (Nodes)
 # ==========================================
+def memory_retrieval_node(state: BettingState):
+    """前置节点：在 LLM 决策前，向海马体查询相关教训"""
+    print("   -> 🧠 [Memory] 正在检索海马体中的历史教训...")
+    
+    try:
+        with open(hippo_memory.semantic_memory_file, "r", encoding="utf-8") as f:
+            semantic_data = json.load(f)
+            risk_tolerance = semantic_data.get("risk_tolerance", 0.05)
+            truths = semantic_data.get("truths", [])
+    except Exception as e:
+        risk_tolerance = 0.05
+        truths = []
+        
+    system_msg = SystemMessage(
+        content=f"【数字生命系统指令】:\n"
+                f"你目前的全局风险容忍度被海马体限制为: {risk_tolerance}。\n"
+                f"这是你从过去的亏损中提炼出的绝对真理（如有）：{', '.join(truths[-3:])}\n"
+                f"在接下来的分析中，如果比赛特征命中了上述真理，必须直接拒绝交易！"
+    )
+    
+    # 动态插入记忆提示词，且确保它紧跟在角色的 SystemMessage 后面
+    if state["messages"] and isinstance(state["messages"][0], SystemMessage):
+        # 如果已经有了外部的角色设定（如压测脚本传入的），将记忆补在第二位
+        state["messages"].insert(1, system_msg)
+    else:
+        state["messages"].insert(0, system_msg)
+        
+    return {"risk_tolerance": risk_tolerance, "historical_lessons": str(truths)}
+
 def llm_oracle_node(state: BettingState):
     """大脑节点：负责产生带有 tool_calls 的 AIMessage"""
     print("   -> 🧠 [Oracle LLM] 真实大模型正在思考和决策...")
@@ -137,14 +170,19 @@ def should_continue(state: BettingState) -> Literal["tools", "end"]:
 def compile_agentic_graph():
     """编译并返回无状态的图对象，支持外部传入不同的初始状态(实现 Swarm 裂变)"""
     mcp = MCPToolDiscoverer()
-    mcp.discover_tools()
+    try:
+        mcp.discover_local_tools()
+    except AttributeError:
+        pass # Handle case where mcp_discoverer changed API
     
     workflow = StateGraph(BettingState)
     
+    workflow.add_node("memory", memory_retrieval_node)
     workflow.add_node("oracle", llm_oracle_node)
     workflow.add_node("tools", tool_executor_node)
     
-    workflow.add_edge(START, "oracle")
+    workflow.add_edge(START, "memory")
+    workflow.add_edge("memory", "oracle")
     workflow.add_conditional_edges("oracle", should_continue, {"tools": "tools", "end": END})
     workflow.add_edge("tools", "oracle")
     
