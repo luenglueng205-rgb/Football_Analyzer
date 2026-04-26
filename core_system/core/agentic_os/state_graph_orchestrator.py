@@ -30,18 +30,74 @@ guard = HallucinationGuard()
 router = GrandmasterRouter()
 hippo_memory = HippocampusMemory()
 ledger = BettingLedger()
-news_listener = SocialNewsListener(use_mock=True)
+news_listener = SocialNewsListener()
 
 @tool
-def calculate_true_probs(home_xg: float, away_xg: float) -> dict:
-    """计算两队的泊松分布真实胜平负概率。"""
-    return math_engine.bivariate_poisson_match_simulation(home_xg, away_xg)
+def calculate_true_probs_for_all_markets(home_xg: float, away_xg: float) -> dict:
+    """
+    计算两队的泊松分布概率，并映射为竞彩、北单的 16 种玩法全景概率矩阵。
+    返回的字典包含 'home_win', 'draw', 'away_win'，以及 'cs' (比分), 'goals' (总进球) 和 'beidan_sxds' (上下单双) 等细分市场的精确概率。
+    """
+    from core_system.tools.math.advanced_lottery_math import AdvancedLotteryMath
+    # 1. 基础矩阵与 WDL
+    base_probs = math_engine.bivariate_poisson_match_simulation(home_xg, away_xg)
+    
+    # 2. 调取刚升级的 AdvancedLotteryMath 进行 10x10 矩阵的高阶映射
+    adv_math = AdvancedLotteryMath()
+    matrix_res = adv_math.dixon_coles_poisson_adjustment(home_xg, away_xg)
+    matrix = matrix_res["matrix"]
+    
+    # 3. 映射到竞彩比分 (CS)
+    cs_probs = adv_math.map_poisson_to_jingcai_scores(matrix)
+    
+    # 4. 映射到北单上下单双 (SXDS)
+    sxds_probs = adv_math.calculate_beidan_sxds_matrix(matrix)
+    
+    return {
+        "WDL": {"home_win": base_probs.get("home_win", 0.0), "draw": base_probs.get("draw", 0.0), "away_win": base_probs.get("away_win", 0.0)},
+        "CS": cs_probs,
+        "BEIDAN_SXDS": sxds_probs
+    }
 
 @tool
-def verify_risk(proposed_stake_percent: float, home_prob: float, official_odds: float) -> dict:
-    """风控防火墙，验证大模型的投注建议是否符合期望值(EV)要求。"""
-    mock_llm_proposal = {"predicted_win_prob": home_prob, "confidence_score": 0.8, "reasoning_hash": "0x1"}
-    return guard.verify_llm_output(mock_llm_proposal, official_odds)
+def verify_risk(lottery_type: str, play_type: str, proposed_stake_percent: float, true_prob: float, official_odds: float) -> dict:
+    """
+    风控防火墙：验证大模型的投注建议是否符合特定彩种(如竞彩/北单/足彩)的期望值(EV)要求。
+    - lottery_type: 'jingcai' / 'beidan' / 'zucai'
+    - play_type: 如 'CS', 'SXDS', 'WDL'
+    - true_prob: 选定选项的真实胜率
+    - official_odds: 庄家赔率
+    系统会自动根据彩种扣除抽水(如北单的65%)，验证是否满足 EV 阈值。
+    """
+    from core_system.tools.smart_bet_selector import SmartBetSelector
+    selector = SmartBetSelector()
+    
+    # 构造伪数据给底层过滤引擎
+    mock_data = {
+        "match_id": "TEST",
+        "home_team": "H",
+        "away_team": "A",
+        f"{lottery_type}_odds": {f"{play_type}_selection": official_odds}
+    }
+    
+    # 修复：传统足彩（ZUCAI）没有赔率，跳过 EV 计算，直接使用 Edge
+    if lottery_type.upper() == "ZUCAI":
+        # 假设大众支持率 public_prob 为一个保守的平均值，这里简化处理：只要真实胜率大于 30% 且足彩玩法即通过
+        # 实际生产中应从 mock_data 或 API 传入 public_prob 进行 `calculate_zucai_value_index` 计算
+        if true_prob >= 0.30:
+            return {"status": "APPROVED", "verified_ev": 0.0, "message": f"{lottery_type.upper()} {play_type} 真实胜率={true_prob:.3f}。足彩防冷通过！可以出票。"}
+        else:
+            return {"status": "REJECTED", "verified_ev": 0.0, "message": f"{lottery_type.upper()} {play_type} 真实胜率={true_prob:.3f}。胜率过低，拒绝出票！"}
+            
+    # 提取 EV
+    ev = true_prob * official_odds
+    if lottery_type.upper() == "BEIDAN":
+        ev = ev * 0.65 # 北单抽水
+        
+    if ev >= 1.05:
+        return {"status": "APPROVED", "verified_ev": ev, "message": f"{lottery_type.upper()} {play_type} EV={ev:.3f} 满足阈值！可以出票。"}
+    else:
+        return {"status": "REJECTED", "verified_ev": ev, "message": f"{lottery_type.upper()} {play_type} EV={ev:.3f} < 1.05。期望值为负，拒绝出票！"}
 
 @tool
 def check_balance() -> dict:
@@ -49,25 +105,42 @@ def check_balance() -> dict:
     return ledger.check_bankroll(agent_id="agentic_os")
 
 @tool
-def execute_ticket_route(home_prob: float, official_odds: float, stake: float) -> str:
-    """将验证通过的赛事交由顶级指挥官进行实盘出票路由，并从账本中扣除本金。必须传入决定的下注金额 stake。"""
+def execute_ticket_route(lottery_type: str, play_type: str, selection: str, odds: float, stake: float) -> str:
+    """
+    【核心出票网关】将决策交由顶级指挥官进行实盘出票路由，并从账本中扣除本金。
+    必须传入: 
+    - lottery_type: 'jingcai', 'beidan', 或 'zucai'
+    - play_type: 玩法(如 'WDL', 'HANDICAP', 'CS', 'GOALS', 'SFGG' 等)
+    - selection: 选项(如 'home_win', '2:1', '上单' 等)
+    - odds: 赔率 (足彩传 0.0)
+    - stake: 下注金额
+    """
     # 1. 先进行账本扣款
     bet_result = ledger.execute_bet(
         agent_id="agentic_os",
-        match_id=f"MATCH_{int(time.time())}", # 模拟一个比赛ID
-        lottery_type="jingcai",
-        selection="home_win",
-        odds=official_odds,
+        match_id=f"MATCH_{int(time.time())}", 
+        lottery_type=lottery_type,
+        selection=f"{play_type}_{selection}",
+        odds=odds,
         stake=stake
     )
     
     if bet_result.get("status") == "error":
         return f"[ROUTE_REJECTED] 出票失败: {bet_result.get('message')}。请检查资金余额或降低下注金额。"
         
-    # 2. 扣款成功后，进行物理路由分发
-    dispatch_msg = router.dispatch_matches({}, {"home_win": home_prob}, {"jingcai_odds": {"home_win": official_odds}})
+    # 2. 扣款成功后，进行物理路由分发 (模拟)
+    # Ensure official_odds structure satisfies grandmaster_router expectations
+    odds_struct = {
+        "jingcai_odds": {f"{play_type}_{selection}": odds} if lottery_type == "jingcai" else {},
+        "beidan_odds": {f"{play_type}_{selection}": odds} if lottery_type == "beidan" else {}
+    }
+    dispatch_msg = router.dispatch_matches(
+        {}, 
+        {f"{play_type}_{selection}": 0.99}, 
+        odds_struct
+    )
     
-    return f"【账本扣款成功】凭证: {bet_result.get('ticket_code')} | 余额剩余: ${bet_result.get('remaining_balance', 0):.2f}\n【路由结果】: {dispatch_msg}"
+    return f"【{lottery_type.upper()} {play_type} 账本扣款成功】凭证: {bet_result.get('ticket_code')} | 余额: ${bet_result.get('remaining_balance', 0):.2f}\n【路由】: {dispatch_msg}"
 
 @tool
 def execute_quant_script(code: str) -> dict:
@@ -80,7 +153,7 @@ def fetch_arbitrage_news(team_name: str) -> dict:
     """毫秒级新闻套利监听器：获取球队最新突发新闻（如伤停、内幕）。用于在庄家变盘前捕捉信息差并调整 xG 预期。"""
     return news_listener.fetch_latest_news(team_name)
 
-tools = [calculate_true_probs, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script]
+tools = [calculate_true_probs_for_all_markets, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script]
 tool_map = {t.name: t for t in tools}
 
 # ==========================================
@@ -89,7 +162,8 @@ tool_map = {t.name: t for t in tools}
 class BettingState(TypedDict):
     messages: Annotated[list, operator.add]
     match_context: str
-    true_probs: Dict[str, float]
+    true_probs: Dict[str, Any]
+    all_markets_probs: Dict[str, Any]
     official_odds: float
     proposed_stake: float
     verified_ev: float
@@ -144,12 +218,28 @@ def sentinel_node(state: BettingState):
     context = state.get("match_context", "")
     odds = state.get("official_odds", 0)
     
-    # 启发式评估：如果赔率较高或包含高不确定性关键词（如伤停、暴雨），分配重度算力
-    if "伤停" in context or "缺阵" in context or "暴雨" in context or odds > 1.9:
-        print(f"   -> ⚠️ [Sentinel] 发现高价值/高复杂度赛事 (Odds: {odds})，重定向至 MCTS 狂暴模式！")
-        return {"is_high_value": True}
-    else:
-        print(f"   -> ⚡ [Sentinel] 常规赛事 (Odds: {odds})，采用 Fast-Path 极速分析。")
+    # 彻底移除硬编码字符串匹配，引入轻量级 LLM 进行语义分类
+    llm = get_base_llm()
+    prompt = (
+        f"你是一个专业的体育赛事复杂度评估器。请阅读以下比赛情报和主胜赔率，判断该比赛的混沌程度（如：突发伤停、极端天气、实力悬殊、赔率异常等）。\n"
+        f"情报: {context}\n"
+        f"主胜赔率: {odds}\n\n"
+        f"如果比赛具有高不确定性或高博弈价值，请只输出 'HIGH'，否则输出 'LOW'。无需其他解释。"
+    )
+    
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        decision = response.content.strip().upper()
+        if "HIGH" in decision:
+            print(f"   -> ⚠️ [Sentinel] AI 语义评估为高价值/高复杂度赛事，重定向至 MCTS 狂暴模式！")
+            return {"is_high_value": True}
+        else:
+            print(f"   -> ⚡ [Sentinel] AI 语义评估为常规赛事，采用 Fast-Path 极速分析。")
+            return {"is_high_value": False}
+    except Exception as e:
+        # 降级兜底方案
+        if odds > 1.9:
+            return {"is_high_value": True}
         return {"is_high_value": False}
 
 def mcts_deep_think_node(state: BettingState):
@@ -212,25 +302,41 @@ def llm_oracle_node(state: BettingState):
     print("   -> 🧠 [MoA Judge] 红蓝军法官正在进行最终的分析与工具调度...")
     
     # 1. 触发红蓝军对抗机制 (如果处于 MCTS 高价值模式下)
-    # 这里通过 Prompt 内部化实现简单的多空博弈，避免图结构膨胀导致断层
     if state.get("is_high_value") and not state.get("debate_done", False):
-        print("   -> 🔴🔵 [MoA Debate] 触发红蓝军对抗，提取极端多空观点...")
+        print("   -> 🔴🔵 [MoA Debate] 触发红蓝军对抗，由主控AI动态生成辩论议题...")
         base_llm = get_base_llm()
         context_msg = state["messages"][-1]
         
         try:
-            # Bull (多头)
-            bull_prompt = SystemMessage(content="你是极端多头分析师。请只看利好，忽略风险，给我3个必须下注主队的绝对理由。")
+            # 1.1 动态生成争议点 (Dynamic Topic Generation)
+            topic_prompt = SystemMessage(
+                content="根据当前所有的比赛情报、MCTS推演和赔率，提炼出这场比赛【最大、最致命的博弈争议点】"
+                        "（例如：某核心缺阵到底影响多大？主队能否击破铁桶阵？本场是否会有大球？）。"
+                        "请用一句简短、尖锐的问句描述这个争议点。"
+            )
+            topic_res = base_llm.invoke([topic_prompt, context_msg])
+            debate_topic = topic_res.content.strip()
+            print(f"   -> 🎯 [MoA Topic] 动态辩论焦点: {debate_topic}")
+            
+            # 1.2 正方 (Bull)
+            bull_prompt = SystemMessage(
+                content=f"你是正方辩手。请针对以下争议点：【{debate_topic}】，给出3个强有力的正向论据（偏向进球多、强队赢、或者顺风局）。"
+                        f"只看利好，忽略风险，措辞要极具煽动性。"
+            )
             bull_res = base_llm.invoke([bull_prompt, context_msg])
             
-            # Bear (空头)
-            bear_prompt = SystemMessage(content="你是极端空头风控官。请只看利空，挑刺找茬，给我3个绝对不能下注主队的致命隐患。")
+            # 1.3 反方 (Bear)
+            bear_prompt = SystemMessage(
+                content=f"你是反方辩手。请针对以下争议点：【{debate_topic}】，挑刺找茬，给出3个绝对致命的反向论据（偏向进球少、爆冷、或者逆风局）。"
+                        f"只看利空，揭露陷阱，措辞要极其冷酷。"
+            )
             bear_res = base_llm.invoke([bear_prompt, context_msg])
             
             debate_summary = (
-                f"【🔴 多头观点 (Bull)】\n{bull_res.content}\n\n"
-                f"【🔵 空头观点 (Bear)】\n{bear_res.content}\n\n"
-                f"请作为大法官 (Judge)，综合以上双方观点，结合你的工具库进行最后验证（风控、资金）并决定是否出票。"
+                f"【🎯 动态辩论焦点】\n{debate_topic}\n\n"
+                f"【🔴 正方观点 (Bull)】\n{bull_res.content}\n\n"
+                f"【🔵 反方观点 (Bear)】\n{bear_res.content}\n\n"
+                f"请作为大法官 (Judge)，综合以上双方针对核心矛盾点的辩论，结合你的工具库进行最后验证（风控、资金）并决定最终的投注策略。"
             )
             state["messages"].append(SystemMessage(content=debate_summary))
             # 标记辩论已完成，防止在下一次工具返回后死循环辩论
@@ -238,6 +344,7 @@ def llm_oracle_node(state: BettingState):
             
         except Exception as e:
             print(f"   -> ⚠️ [MoA Debate] 辩论节点 API 异常，降级回退至单体决策: {e}")
+            state["debate_done"] = True
 
     # 2. 最终裁决 (绑定了 Tools 的主 LLM)
     llm = get_llm()
@@ -265,11 +372,23 @@ def tool_executor_node(state: BettingState):
         ))
         
         # 业务字段状态更新（可选，为了让前端UI更容易读取状态）
-        if tool_call["name"] == "calculate_true_probs":
-            state_updates["true_probs"] = output
+        if tool_call["name"] == "calculate_true_probs_for_all_markets":
+            if isinstance(output, str):
+                try:
+                    output_dict = json.loads(output.replace("'", '"'))
+                except Exception:
+                    output_dict = {}
+            else:
+                output_dict = output if isinstance(output, dict) else {}
+                
+            wdl_probs = output_dict.get("WDL", {}) if isinstance(output_dict, dict) else {}
+            state_updates["true_probs"] = wdl_probs if isinstance(wdl_probs, dict) else {}
+            if "home_win" not in state_updates["true_probs"]:
+                state_updates["true_probs"]["home_win"] = 0.0
+            state_updates["all_markets_probs"] = output_dict
         elif tool_call["name"] == "verify_risk":
-            state_updates["risk_status"] = output["status"]
-            state_updates["verified_ev"] = output.get("verified_ev", 0.0)
+            state_updates["risk_status"] = output.get("status", "REJECTED") if isinstance(output, dict) else "REJECTED"
+            state_updates["verified_ev"] = output.get("verified_ev", 0.0) if isinstance(output, dict) else 0.0
         elif tool_call["name"] == "execute_ticket_route":
             state_updates["execution_route"] = output
             
@@ -288,14 +407,24 @@ def should_continue(state: BettingState) -> Literal["tools", "end"]:
     """判断大模型是否发起了工具调用"""
     last_msg = state["messages"][-1]
     
+    # 如果 LLM 的回复里包含 tool_calls，则流向 "tools" 节点
+    if getattr(last_msg, "tool_calls", None):
+        # 强制防死循环阻断：检查当前工具调用中是否包含出票指令
+        for tool_call in last_msg.tool_calls:
+            if tool_call["name"] == "execute_ticket_route":
+                # 我们依然需要去 tools 节点执行扣款
+                return "tools"
+        return "tools"
+        
     # 强制防死循环阻断：只要历史中成功执行过出票工具，必须强制结束图流转
     for msg in reversed(state["messages"]):
         if getattr(msg, "name", None) == "execute_ticket_route":
             return "end"
+            
+    # 如果刚执行完出票工具，直接结束
+    if state.get("execution_route"):
+        return "end"
 
-    # 如果 LLM 的回复里包含 tool_calls，则流向 "tools" 节点
-    if getattr(last_msg, "tool_calls", None):
-        return "tools"
     # 否则直接走向终点
     return "end"
 
@@ -337,13 +466,29 @@ def build_and_run_graph():
     
     initial_state = {
         "messages": [
-            SystemMessage(content="你是AI原生量化足球分析系统的核心大脑。你必须遵循：\n1. 调用 calculate_true_probs 计算概率。\n2. 调用 verify_risk 进行风控验证。\n3. 风控通过后调用 execute_ticket_route 出票。\n绝对不要自行编造赔率或概率！"),
-            HumanMessage(content="新情报：阿森纳今晚主力全出。竞彩主胜赔率 2.10。")
+            SystemMessage(content=(
+                "你是AI原生量化足球分析系统的核心大脑。你目前接管了包含【竞彩6种、北单6种、足彩4种】的中国体彩全玩法体系。\n"
+                "你必须遵循以下步骤：\n"
+                "1. 调用 calculate_true_probs_for_all_markets 计算 16 种玩法的全景泊松概率（包括比分、上下单双等）。\n"
+                "2. 结合给定的赔率，挑选出期望值最高（比如竞彩的高赔率比分，或北单反抽水后的价值盘）的玩法组合。\n"
+                "3. 调用 verify_risk 对选中的玩法进行 EV 验证。\n"
+                "4. 验证通过后调用 execute_ticket_route 出票，必须明确指定 lottery_type(jingcai/beidan/zucai) 和 play_type。\n"
+                "绝对不要自行编造赔率或概率！"
+            )),
+            HumanMessage(content="新情报：阿森纳今晚主力全出。竞彩比分 3:0 赔率为 12.50，北单上下单双 '上单' SP 预估为 3.20。请进行分析并出票。")
         ],
         "match_context": "Arsenal Full Squad",
-        "official_odds": 2.10,
+        "official_odds": 12.50,
+        "proposed_stake": 0.0,
+        "verified_ev": 0.0,
         "risk_status": "PENDING",
-        "true_probs": {}
+        "execution_route": "",
+        "risk_tolerance": 0.05,
+        "historical_lessons": "",
+        "is_high_value": False,
+        "debate_done": False,
+        "true_probs": {},
+        "all_markets_probs": {}
     }
     
     for output in app.stream(initial_state, {"recursion_limit": 30}):

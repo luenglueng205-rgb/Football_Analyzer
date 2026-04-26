@@ -8,7 +8,7 @@ from core_system.skills.news_arbitrage.social_listener import SocialNewsListener
 
 # Initialize the MCP Server
 mcp = FastMCP("NewsArbitrageListener")
-listener = SocialNewsListener(use_mock=True)
+listener = SocialNewsListener()
 
 @mcp.tool()
 def fetch_arbitrage_news(team_name: str) -> dict:
