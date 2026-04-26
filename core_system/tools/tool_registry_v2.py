@@ -42,14 +42,13 @@ import torch
 
 def _run_stgnn_simulation(home_team: str, away_team: str, current_minute: int = 70) -> dict:
     """包装 ST-GNN 模拟器的执行入口"""
-    from tools.st_gnn_simulator import GenerativeWorldModel
+    from tools.st_gnn_simulator import GenerativeWorldModel, fetch_real_tracking_data
     try:
         # 1. 初始化模型
         model = GenerativeWorldModel(num_nodes=23, node_features=4, hidden_dim=64)
         
-        # 2. 模拟获取当前赛场 22人+球 的时空追踪坐标 (实际应接入 StatsBomb 360)
-        # 这里用随机张量模拟过去的 5 秒钟数据 (Batch=1, Time=5, Nodes=23, Features=4)
-        mock_history_x = torch.randn(1, 5, 23, 4)
+        # 2. 模拟获取当前赛场 22人+球 的时空追踪坐标 (实际接入 StatsBomb 360 数据)
+        mock_history_x = fetch_real_tracking_data(home_team, away_team, seq_len=5)
         
         # 3. 构建动态邻接矩阵 (基于球员距离)
         mock_history_adj = torch.zeros(1, 5, 23, 23)
@@ -289,7 +288,8 @@ def _data_gateway_fetch_standings(league: str):
 def _fetch_arbitrage_news(team_name: str):
     """获取毫秒级突发套利新闻"""
     from core_system.skills.news_arbitrage.social_listener import SocialNewsListener
-    listener = SocialNewsListener(use_mock=True)
+    # 彻底告别自欺欺人，启用真实 RSS 网络请求！
+    listener = SocialNewsListener(use_mock=False)
     return listener.fetch_latest_news(team_name)
 
 def _execute_quant_script(code: str):

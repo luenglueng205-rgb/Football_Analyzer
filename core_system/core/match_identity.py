@@ -8,6 +8,21 @@ from datetime import datetime, timezone
 from hashlib import sha1
 from typing import Dict, Optional
 
+from tools.paths import data_dir
+
+
+def _fallback_league_mapping() -> Dict[str, Dict]:
+    leagues = {
+        "E0": {"name": "英格兰超级联赛", "name_en": "Premier League"},
+        "SP1": {"name": "西班牙甲级联赛", "name_en": "La Liga"},
+        "I1": {"name": "意大利甲级联赛", "name_en": "Serie A"},
+        "D1": {"name": "德国甲级联赛", "name_en": "Bundesliga"},
+        "F1": {"name": "法国甲级联赛", "name_en": "Ligue 1"},
+        "CHN": {"name": "中国超级联赛", "name_en": "Chinese Super League"},
+        "C1": {"name": "欧洲冠军联赛", "name_en": "UEFA Champions League"},
+    }
+    return {"builtin": {"leagues": leagues}}
+
 
 def _normalize_text(s: str) -> str:
     s = s.strip().lower()
@@ -17,10 +32,14 @@ def _normalize_text(s: str) -> str:
 
 
 def _load_league_mapping() -> Dict[str, Dict]:
-    here = os.path.dirname(os.path.abspath(__file__))
-    mapping_path = os.path.join(here, "..", "data", "league_mapping.json")
-    with open(mapping_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(data_dir("league_mapping.json"), "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+            if isinstance(mapping, dict) and mapping:
+                return mapping
+    except Exception:
+        pass
+    return _fallback_league_mapping()
 
 
 class LeagueResolver:

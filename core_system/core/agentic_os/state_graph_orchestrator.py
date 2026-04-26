@@ -21,6 +21,8 @@ from core_system.tools.mcp_discoverer import MCPToolDiscoverer
 from core_system.core.agentic_os.hippocampus import HippocampusMemory
 from core_system.tools.betting_ledger import BettingLedger
 from core_system.skills.news_arbitrage.social_listener import SocialNewsListener
+from core_system.skills.spatial_world_model.gwm_engine import GenerativeWorldModel
+from core_system.tools.environment_analyzer import EnvironmentAnalyzer
 
 # ==========================================
 # 1. 定义工具 (LangChain @tool 配合 MCP 概念)
@@ -165,7 +167,23 @@ def simulate_latent_tactics(match_id: str, home_formation: str = "4-3-3", away_f
     gwm = GenerativeWorldModel()
     return gwm.rollout_next_15_mins(match_id, home_formation, away_formation)
 
-tools = [calculate_true_probs_for_all_markets, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script, simulate_latent_tactics]
+@tool
+def fetch_match_environment(city: str, referee_strictness: str = "medium") -> dict:
+    """
+    获取比赛的环境因素（天气、裁判尺度）对预期进球数(xG)的量化影响。
+    必须在计算泊松概率前调用此工具，以获取 xG 的修正系数。
+    """
+    analyzer = EnvironmentAnalyzer()
+    # Mocking real weather fetching based on city for demonstration
+    mock_weather = "heavy_rain" if "Manchester" in city else "clear"
+    impact = analyzer.analyze_unstructured_factors(weather=mock_weather, referee_strictness=referee_strictness)
+    return {
+        "weather": mock_weather,
+        "referee": referee_strictness,
+        "xg_modifier": impact
+    }
+
+tools = [calculate_true_probs_for_all_markets, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script, simulate_latent_tactics, fetch_match_environment]
 tool_map = {t.name: t for t in tools}
 
 # ==========================================
@@ -481,11 +499,13 @@ def build_and_run_graph():
             SystemMessage(content=(
                 "你是AI原生量化足球分析系统的核心大脑。你目前接管了包含【竞彩6种、北单6种、足彩4种】的中国体彩全玩法体系。\n"
                 "你必须遵循以下步骤：\n"
-                "1. 调用 calculate_true_probs_for_all_markets 计算 16 种玩法的全景泊松概率（包括比分、上下单双等）。\n"
-                "2. 结合给定的赔率，挑选出期望值最高（比如竞彩的高赔率比分，或北单反抽水后的价值盘）的玩法组合。\n"
-                "3. 调用 verify_risk 对选中的玩法进行 EV 验证。\n"
-                "4. 验证通过后调用 execute_ticket_route 出票，必须明确指定 lottery_type(jingcai/beidan/zucai) 和 play_type。\n"
-                "5. (可选) 对于滚球(In-Play)或高价值比赛，可调用 simulate_latent_tactics 摄取 ST-GNN 空间数据，推演未来 15 分钟的战术剧本。\n"
+                "1. 调用 fetch_match_environment 获取天气和裁判对进球数的影响系数。\n"
+                "2. 调用 fetch_arbitrage_news 获取情报，判断是否存在重大的基本面异动。\n"
+                "3. 调用 calculate_true_probs_for_all_markets 计算 16 种玩法的全景泊松概率（包括比分、上下单双等），并叠加环境系数。\n"
+                "4. 结合给定的赔率，挑选出期望值最高（比如竞彩的高赔率比分，或北单反抽水后的价值盘）的玩法组合。\n"
+                "5. 调用 verify_risk 对选中的玩法进行 EV 验证。\n"
+                "6. 验证通过后调用 execute_ticket_route 出票，必须明确指定 lottery_type(jingcai/beidan/zucai) 和 play_type。\n"
+                "7. (可选) 对于滚球(In-Play)或高价值比赛，可调用 simulate_latent_tactics 摄取 ST-GNN 空间数据，推演未来 15 分钟的战术剧本。\n"
                 "绝对不要自行编造赔率或概率！"
             )),
             HumanMessage(content="新情报：阿森纳今晚主力全出。竞彩比分 3:0 赔率为 12.50，北单上下单双 '上单' SP 预估为 3.20。请进行分析并出票。")

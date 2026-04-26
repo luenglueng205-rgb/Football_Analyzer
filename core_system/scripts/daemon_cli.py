@@ -94,7 +94,7 @@ def run(argv: Optional[List[str]] = None, *, stdout: Optional[TextIO] = None) ->
             await _emit(out, event, pretty=bool(args.pretty))
 
         for t in ("ODDS_DAEMON_STARTED", "ODDS_TICK", "ODDS_ALERT", "ODDS_UNAVAILABLE", "ODDS_DAEMON_STOPPED"):
-            bus.subscribe(t, printer)
+            await bus.subscribe(t, printer)
 
         daemon = RealTimeOddsDaemon(
             match_id=str(args.match_id),

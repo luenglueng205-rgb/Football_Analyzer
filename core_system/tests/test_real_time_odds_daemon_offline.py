@@ -29,8 +29,8 @@ async def test_realtime_odds_daemon_offline_ticks_trigger_alert(tmp_path):
     async def on_tick(evt):
         ticks.append(evt)
 
-    bus.subscribe("ODDS_TICK", on_tick)
-    bus.subscribe("ODDS_ALERT", on_alert)
+    await bus.subscribe("ODDS_TICK", on_tick)
+    await bus.subscribe("ODDS_ALERT", on_alert)
 
     daemon = RealTimeOddsDaemon(
         match_id="m1",
@@ -79,7 +79,7 @@ async def test_realtime_odds_daemon_offline_does_not_call_fetcher(tmp_path, monk
     async def on_unavailable(evt):
         seen.append(evt)
 
-    bus.subscribe("ODDS_UNAVAILABLE", on_unavailable)
+    await bus.subscribe("ODDS_UNAVAILABLE", on_unavailable)
 
     daemon = RealTimeOddsDaemon(
         match_id="m2",

@@ -7,70 +7,31 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ── 沙箱执行：优先使用 RestrictedPython，降级到隔离子进程 ──────────────────
-try:
-    from RestrictedPython import compile_restricted, safe_globals, safe_builtins
-    from RestrictedPython.Guards import safe_exec, guarded_getattr, guarded_getitem
-    _RESTRICTED_PYTHON_AVAILABLE = True
-except ImportError:
-    _RESTRICTED_PYTHON_AVAILABLE = False
-    logger.warning(
-        "RestrictedPython 未安装，代码沙箱不可用。"
-        "请运行 `pip install RestrictedPython` 以启用安全执行。"
-    )
-
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CORE_SYSTEM_ROOT = _REPO_ROOT / "core_system"
 _DEFAULT_SANDBOX_DIR = _CORE_SYSTEM_ROOT / "workspace" / "strategist" / "sandbox"
 _DEFAULT_ACTIVE_STRATEGY_PATH = _CORE_SYSTEM_ROOT / "core" / "active_strategy.py"
 
-# ── 允许 AI 生成代码使用的安全内置模块白名单 ──────────────────────────────
-_SAFE_MODULES = frozenset({"random", "json", "math", "statistics", "collections"})
-
-
+# ── 沙箱执行：优先使用隔离的 Code Interpreter MCP 服务 ──────────────────
 def _run_in_restricted_sandbox(code: str) -> dict:
     """
-    在 RestrictedPython 沙箱中执行 AI 生成代码。
-    只允许访问白名单内置函数，禁止 os / subprocess / shutil / open 等危险操作。
+    通过系统的 Code Interpreter MCP 隔离执行 AI 生成的代码。
     返回 {"stdout": ..., "ok": True} 或 {"error": ..., "ok": False}
     """
-    if not _RESTRICTED_PYTHON_AVAILABLE:
-        return {"ok": False, "error": "RestrictedPython 未安装，拒绝执行 AI 生成代码。"}
-
     try:
-        byte_code = compile_restricted(code, filename="<ai_generated>", mode="exec")
-    except SyntaxError as e:
-        return {"ok": False, "error": f"AI 代码语法错误: {e}"}
-
-    # 构造最小权限全局命名空间
-    _allowed_builtins = {
-        k: v for k, v in safe_builtins.items()
-        if k not in {"__import__", "open", "exec", "eval", "compile"}
-    }
-
-    def _safe_import(name, *args, **kwargs):
-        if name not in _SAFE_MODULES:
-            raise ImportError(f"沙箱拒绝导入模块: '{name}'（不在白名单中）")
-        import importlib
-        return importlib.import_module(name)
-
-    _allowed_builtins["__import__"] = _safe_import
-
-    captured_output = io.StringIO()
-    glb = {
-        **safe_globals,
-        "__builtins__": _allowed_builtins,
-        "_print_": lambda *a, **kw: captured_output.write(" ".join(str(x) for x in a) + "\n"),
-        "_getattr_": guarded_getattr,
-        "_getitem_": guarded_getitem,
-    }
-
-    try:
-        exec(byte_code, glb)  # noqa: S102  — byte_code 已由 RestrictedPython 净化
+        import sys
+        if str(_CORE_SYSTEM_ROOT.parent) not in sys.path:
+            sys.path.insert(0, str(_CORE_SYSTEM_ROOT.parent))
+            
+        from core_system.skills.code_interpreter.server import execute_quant_script
+        result = execute_quant_script(code)
+        if result.get("status") == "success":
+            return {"ok": True, "stdout": result.get("stdout", "")}
+        else:
+            return {"ok": False, "error": result.get("stderr", "Unknown error")}
     except Exception as e:
+        # 捕获 RestrictedPython 中的运行错误，视同该策略崩溃
         return {"ok": False, "error": f"沙箱执行异常: {e}"}
-
-    return {"ok": True, "stdout": captured_output.getvalue()}
 
 
 class QuantResearcherAgent:
@@ -96,24 +57,60 @@ class QuantResearcherAgent:
         self.active_strategy_path.parent.mkdir(parents=True, exist_ok=True)
         
     def _simulate_llm_code_generation(self, iteration: int) -> str:
-        """模拟大模型（如 GPT-4o 或 Claude 3.5）根据数据直接生成可执行的 Python 代码"""
-        print(f"   -> 🧠 [LLM Inference] 正在构思第 {iteration} 代定价模型，编写 Python 代码中...")
-        time.sleep(1.0)
+        """调用真实 LLM 生成可执行的 Python 策略代码，取代随机抛硬币"""
+        print(f"   -> 🧠 [LLM Inference] 正在调用大模型构思第 {iteration} 代定价模型，编写真实 Python 代码中...")
         
-        # AI 自己写的代码（带有不同的随机因子和逻辑，模拟模型变异）
-        code = f"""
-import random
+        import re
+        import os
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage
+        
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY") or "dummy"
+        base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
+        model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
+        
+        client_kwargs = {"api_key": api_key, "model": model_name, "temperature": 0.7}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        
+        prompt = f"""
+你是专业的量化分析师，你正在编写一个 Python 脚本来回测一个足彩赔率策略 (迭代版本 {iteration})。
+要求：
+1. 必须使用纯 Python (标准库，允许 json, math, collections)。
+2. 你需要自己生成一些模拟的赔率历史数据（至少 10 场比赛，包含 home_odds, draw_odds, away_odds 和真实赛果 result ('H', 'D', 'A')）。
+3. 实现一个简单的凯利准则或泊松分布变体来决定是否下注，并计算回测的胜率、夏普比率 (Sharpe Ratio)、最大回撤 (Max Drawdown)。
+4. 必须在最后用 print(json.dumps(...)) 输出结果，包含字典键："strategy_id", "sharpe_ratio", "max_drawdown", "code_hash"。
+5. 必须返回纯 Python 代码，不要用 markdown code block 包装，只返回代码本身！
+"""
+        try:
+            llm = ChatOpenAI(**client_kwargs)
+            response = llm.invoke([HumanMessage(content=prompt)])
+            code = response.content.strip()
+            # 如果大模型仍然返回了 markdown 语法，进行清理
+            code = re.sub(r"^```python\s*", "", code)
+            code = re.sub(r"^```\s*", "", code)
+            code = re.sub(r"```\s*$", "", code)
+            return code
+        except Exception as e:
+            print(f"   -> ⚠️ [LLM Fallback] API 调用失败，回退到基础模板: {e}")
+            # 失败回退逻辑，不再是纯随机，而是写一个简单的算法
+            return f'''
 import json
+import math
 
 def backtest_strategy():
-    # AI generated logic iteration {iteration}
-    # Fetching historical JSON data (mocked)
-    win_rate = random.uniform(0.4, 0.6)
-    sharpe_ratio = random.uniform(0.5, 3.5)
-    max_drawdown = random.uniform(0.01, 0.15)
+    # Fallback algorithmic strategy
+    results = [1, -1, 1, 1, -1, 1, 0, 1, -1, 1]
+    win_rate = sum(1 for x in results if x > 0) / len(results)
+    
+    # 简单的伪夏普比率计算
+    mean_return = 0.05
+    std_dev = 0.15
+    sharpe_ratio = mean_return / std_dev + (win_rate - 0.5)
+    max_drawdown = 0.12
     
     result = {{
-        "strategy_id": "v{iteration}_ai_generated",
+        "strategy_id": "v{iteration}_fallback",
         "sharpe_ratio": round(sharpe_ratio, 2),
         "max_drawdown": round(max_drawdown, 2),
         "code_hash": "{hash(str(iteration))}"
@@ -123,10 +120,9 @@ def backtest_strategy():
 
 if __name__ == "__main__":
     backtest_strategy()
-"""
-        return code
+'''
 
-    def auto_research_loop(self, max_iterations=3):
+    async def auto_research_loop(self, max_iterations: int = 3):
         print("==================================================")
         print("🧪 [Agentic R&D] 启动全自动量化投研流水线 (AI Code Generation)...")
         print("==================================================")
@@ -155,6 +151,9 @@ if __name__ == "__main__":
                 continue
             
             stdout = result.get("stdout", "").strip()
+            if not stdout:
+                print("   -> 🚨 [Crash] 脚本执行没有返回任何输出。")
+                continue
             try:
                 # 取 stdout 最后一行 JSON（print(json.dumps(...)) 约定）
                 last_line = [l for l in stdout.splitlines() if l.strip()][-1]

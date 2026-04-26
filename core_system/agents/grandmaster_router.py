@@ -26,14 +26,42 @@ class GrandmasterRouter:
         :return: 路由决策结果的字符串，供大模型或状态机阅读
         """
         # 提取真实胜率
-        home_prob = true_probs.get("home_win", 0.0)
+        # 提取概率
+        home_prob = 0.0
+        if true_probs:
+            if "home_win" in true_probs:
+                home_prob = true_probs["home_win"]
+            elif "WDL" in true_probs and isinstance(true_probs["WDL"], dict) and "home_win" in true_probs["WDL"]:
+                home_prob = true_probs["WDL"]["home_win"]
+            elif len(true_probs) > 0:
+                first_val = list(true_probs.values())[0]
+                if isinstance(first_val, (int, float)):
+                    home_prob = first_val
+                elif isinstance(first_val, dict) and "home_win" in first_val:
+                    home_prob = first_val["home_win"]
+                
+        # 提取赔率 (兼容旧版和新版多玩法)
+        jingcai_odds_dict = official_odds.get("jingcai_odds", {}) if isinstance(official_odds, dict) else {}
+        beidan_odds_dict = official_odds.get("beidan_odds", {}) if isinstance(official_odds, dict) else {}
         
-        # 提取竞彩赔率（兼容嵌套字典和直接传参格式）
-        jingcai_odds_dict = official_odds.get("jingcai_odds", {})
-        if isinstance(jingcai_odds_dict, dict):
-            jc_home_odds = jingcai_odds_dict.get("home_win", 0.0)
+        jc_home_odds = 0.0
+        if jingcai_odds_dict:
+            if "home_win" in jingcai_odds_dict:
+                jc_home_odds = jingcai_odds_dict["home_win"]
+            elif len(jingcai_odds_dict) > 0:
+                jc_home_odds = list(jingcai_odds_dict.values())[0]
+        elif beidan_odds_dict:
+            if "home_win" in beidan_odds_dict:
+                jc_home_odds = beidan_odds_dict["home_win"]
+            elif len(beidan_odds_dict) > 0:
+                jc_home_odds = list(beidan_odds_dict.values())[0]
+        elif isinstance(official_odds, dict):
+            if "home_win" in official_odds:
+                jc_home_odds = official_odds["home_win"]
+            elif len(official_odds) > 0:
+                jc_home_odds = list(official_odds.values())[0]
         else:
-            jc_home_odds = official_odds.get("home_win", 0.0)
+            jc_home_odds = float(official_odds) if official_odds else 0.0
             
         if jc_home_odds <= 0:
             return "[ROUTE_REJECTED] 拒绝交易: 无效的赔率数据"

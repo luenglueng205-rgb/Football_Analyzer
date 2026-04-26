@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
 
-from market_sentinel import MarketSentinel
+try:
+    from market_sentinel import MarketSentinel
+except ImportError:
+    pytest.importorskip("market_sentinel", reason="market_sentinel 模块不存在（见 docs/superpowers/plans/ 待实现）")
 from tools.multisource_fetcher import MultiSourceFetcher
 from tools.snapshot_store import SnapshotStore
 

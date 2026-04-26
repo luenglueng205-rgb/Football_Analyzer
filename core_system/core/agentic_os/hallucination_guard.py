@@ -1,6 +1,9 @@
 import json
-import os
+from pathlib import Path
 from typing import Dict, Any
+
+
+_DEFAULT_CONFIG_FILE = Path(__file__).resolve().with_name("soul_config.json")
 
 class HallucinationGuard:
     """
@@ -8,17 +11,17 @@ class HallucinationGuard:
     不再使用人类硬编码的 `MAX_KELLY_STAKE = 0.05`。
     所有的风控阈值由系统的灵魂 (soul_config.json) 动态读取，实现风控自治。
     """
-    def __init__(self, config_file="standalone_workspace/core/agentic_os/soul_config.json"):
-        self.config_file = config_file
+    def __init__(self, config_file=None):
+        self.config_file = Path(config_file).expanduser() if config_file else _DEFAULT_CONFIG_FILE
         self.max_kelly_stake = 0.02 # 默认极度保守
         self.min_ev_threshold = 0.05
         self._load_dynamic_config()
 
     def _load_dynamic_config(self):
         """AI-Native: 动态加载由 Dynamic Judge 调整的风控阈值"""
-        if os.path.exists(self.config_file):
+        if self.config_file.exists():
             try:
-                with open(self.config_file, "r") as f:
+                with open(self.config_file, "r", encoding="utf-8") as f:
                     config = json.load(f)
                     # 从配置文件读取 AI 设定的风险容忍度
                     self.max_kelly_stake = config.get("risk_tolerance", 0.02)
@@ -32,11 +35,18 @@ class HallucinationGuard:
         print("==================================================")
         
         # 1. 检查 Schema 完整性 (Schema Enforcement)
-        required_keys = ["predicted_win_prob", "confidence_score", "reasoning_hash"]
+        # Core required fields (reasoning_hash is optional for backward compatibility)
+        required_keys = ["predicted_win_prob", "confidence_score"]
+        optional_keys = ["reasoning_hash"]
         for key in required_keys:
             if key not in llm_response:
                 print(f"   -> 🚨 [Fatal Error] LLM 幻觉：输出缺失关键字段 '{key}'。")
                 return {"status": "REJECTED", "reason": "Schema Violation"}
+
+        # Warn about missing optional fields but don't reject
+        for key in optional_keys:
+            if key not in llm_response:
+                print(f"   -> ⚠️ [Warning] LLM 输出缺少可选字段 '{key}'，已忽略。")
                 
         prob = llm_response["predicted_win_prob"]
         confidence = llm_response["confidence_score"]

@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Dict, Optional, Tuple
 
-from core.recommendation_schema import RecommendationSchema
-from core.ticket_schema import LotteryTicket, TicketLeg
-from tools.lottery_router import LotteryRouter
-from tools.parlay_rules_engine import ParlayRulesEngine
+from core_system.core.recommendation_schema import RecommendationSchema
+from core_system.core.ticket_schema import LotteryTicket, TicketLeg
+from core_system.tools.lottery_router import LotteryRouter
+from core_system.tools.parlay_rules_engine import ParlayRulesEngine
 
 
 def _selection_to_code(selection: str) -> str:
@@ -26,16 +26,30 @@ def _selection_to_code(selection: str) -> str:
 
 def _normalize_market(market: str) -> str:
     s = str(market or "").strip().upper()
-    if s in {"1X2", "WDL", "UP_DOWN_ODD_EVEN", "BEIDAN_UP_DOWN_ODD_EVEN"}:
+    # WDL: 胜平负
+    if s in {"1X2", "WDL", "JINGCAI_WDL", "BEIDAN_WDL"}:
         return "WDL"
-    if s in {"HANDICAP_WDL", "HANDICAP", "RQ", "JINGCAI_HANDICAP_WDL", "BEIDAN_HANDICAP_WDL", "SFGG", "BEIDAN_SFGG"}:
+    # HANDICAP: 让球胜平负
+    if s in {"HANDICAP_WDL", "HANDICAP", "RQ", "JINGCAI_HANDICAP_WDL", "BEIDAN_HANDICAP_WDL"}:
         return "HANDICAP"
+    # GOALS: 总进球
     if s in {"TOTAL_GOALS", "GOALS", "JINGCAI_GOALS", "BEIDAN_GOALS"}:
         return "GOALS"
+    # CS: 比分
     if s in {"CORRECT_SCORE", "CS", "JINGCAI_CS", "BEIDAN_CS"}:
         return "CS"
+    # HTFT: 半全场
     if s in {"HTFT", "JINGCAI_HTFT", "BEIDAN_HTFT"}:
         return "HTFT"
+    # 修复：北单特有玩法被剥夺真身的严重漏洞
+    if s in {"UP_DOWN_ODD_EVEN", "BEIDAN_UP_DOWN_ODD_EVEN", "SXDS"}:
+        return "UP_DOWN_ODD_EVEN"
+    if s in {"SFGG", "BEIDAN_SFGG"}:
+        return "SFGG"
+    # 修复：竞彩混合过关
+    if s in {"MIXED_PARLAY", "JINGCAI_MIXED_PARLAY", "MIXED"}:
+        return "MIXED_PARLAY"
+        
     return s or "WDL"
 
 

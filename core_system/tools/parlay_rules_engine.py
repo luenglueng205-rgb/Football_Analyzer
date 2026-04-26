@@ -20,11 +20,13 @@ class ParlayRulesEngine:
         
         # 北京单场官方最大串关场次限制
         self.BEIDAN_MAX_LEGS = {
-            "WDL": 15,      # 胜平负/上下单双
-            "HANDICAP": 15, # 让球胜平负
-            "GOALS": 15,    # 总进球数
-            "HTFT": 15,     # 半全场
-            "CS": 3         # 比分
+            "WDL": 15,               # 胜平负
+            "UP_DOWN_ODD_EVEN": 15,  # 上下单双 (修复: 从 WDL 中拆分独立校验)
+            "HANDICAP": 15,          # 让球胜平负
+            "SFGG": 15,              # 胜负过关 (修复: 从 HANDICAP 中拆分独立校验)
+            "GOALS": 15,             # 总进球数
+            "HTFT": 15,              # 半全场
+            "CS": 3                  # 比分
         }
         
         # 竞彩 M串N 固定组合字典映射 (M_N: [包含的串数])

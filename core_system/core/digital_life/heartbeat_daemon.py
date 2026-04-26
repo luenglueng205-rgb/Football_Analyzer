@@ -1,3 +1,5 @@
+import asyncio
+import json
 import os
 import sys
 import time
@@ -13,6 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from langchain_core.messages import SystemMessage, HumanMessage
 from core_system.core.agentic_os.state_graph_orchestrator import compile_agentic_graph
 from core_system.core.agentic_os.hippocampus import HippocampusMemory
+from core_system.agents.auto_tuner_agent import AutoTunerAgent
 
 # 配置生命体日志系统 (输出到归档目录，防止污染)
 LOG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../core_system/artifacts/reports/daemon_heartbeat.log"))
@@ -37,9 +40,10 @@ class DigitalLifeDaemon:
         self.is_alive = False
         self.brain_app = compile_agentic_graph()
         self.hippo = HippocampusMemory()
+        self.auto_tuner = AutoTunerAgent()
         self.last_consolidation_date = None
         
-        # 注册平滑退出信号 (接收到 kill 命令时优雅死亡)
+        # 注册平滑退出信号
         signal.signal(signal.SIGINT, self._graceful_shutdown)
         signal.signal(signal.SIGTERM, self._graceful_shutdown)
         
@@ -123,6 +127,45 @@ class DigitalLifeDaemon:
             if now.hour == 3 and self.last_consolidation_date != now.date():
                 logger.info("   -> 🌙 [Circadian Rhythm] 触发夜间生物钟，开始反思今日得失...")
                 self.hippo.sleep_and_consolidate()
+                
+                # === 🚀 集成 Agentic Auto-Tuning 进化循环 ===
+                logger.info("   -> 🧬 [Auto-Tuner] 唤醒进化军师，开始深度复盘与超参数迭代...")
+                try:
+                    # 从海马体读取昨日的情节记录 (episodic.json)
+                    with open(self.hippo.episodic_memory_file, "r", encoding="utf-8") as f:
+                        episodes = json.load(f)
+                    
+                    if not episodes:
+                        logger.info("   -> ⚠️ [Auto-Tuner] 昨夜无交易记录，跳过进化循环。")
+                    else:
+                        # 组装军师所需的 pnl_report 战报格式
+                        total = len(episodes)
+                        wins = len([e for e in episodes if e.get("PnL", 0) > 0])
+                        total_profit = sum(e.get("PnL", 0) for e in episodes)
+                        
+                        pnl_report = {
+                            "total_simulated": total,
+                            "win_rate": wins / total if total > 0 else 0.0,
+                            "roi": total_profit / total if total > 0 else 0.0,
+                            "total_profit": total_profit,
+                            "details": [
+                                {
+                                    "status": "LOSS" if e.get("PnL", 0) < 0 else "WIN",
+                                    "odds": [e.get("context", {}).get("odds", 2.0)],
+                                    **e
+                                } for e in episodes
+                            ]
+                        }
+                        
+                        # 触发军师进行进化闭环，重写 hyperparams.json 和 DYNAMIC_EXPERIENCE.md
+                        evolution_result = asyncio.run(self.auto_tuner.run_evolution_cycle(pnl_report))
+                        
+                        if evolution_result and evolution_result.get("ok"):
+                            logger.info("   -> ✅ [Evolution] 进化完成！系统基因(超参数)已成功更新。")
+                except Exception as e:
+                    logger.error(f"   -> ❌ [Evolution Error] 进化反思失败: {e}")
+                # ===============================================
+                
                 self.last_consolidation_date = now.date()
 
             # 1. 感知外部世界

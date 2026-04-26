@@ -8,9 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from data.historical_database import HistoricalDatabase
-from skills.lottery_math_engine import LotteryMathEngine
+from core_system.tools.math.lottery_math_engine import LotteryMathEngine
 # No SettlementEngine import
-from skills.advanced_lottery_math import calculate_beidan_sxds_matrix
+from core_system.tools.math.advanced_lottery_math import calculate_beidan_sxds_matrix
 
 class SettlementEngine:
     @staticmethod

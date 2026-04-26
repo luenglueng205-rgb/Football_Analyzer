@@ -5,10 +5,10 @@ from pathlib import Path
 # Add standalone_workspace to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from skills.trap_identifier import identify_low_odds_trap
-from skills.latency_arbitrage import detect_latency_arbitrage
-from skills.betfair_anomaly import detect_betfair_anomaly
-from skills.kelly_variance_analyzer import analyze_kelly_variance
+from core_system.tools.math.trap_identifier import identify_low_odds_trap
+from core_system.tools.math.latency_arbitrage import detect_latency_arbitrage
+from core_system.tools.math.betfair_anomaly import detect_betfair_anomaly
+from core_system.tools.math.kelly_variance_analyzer import analyze_kelly_variance
 
 def test_analyze_kelly_variance():
     # Scenario 1: High consensus (Low variance). All bookies agree Home is strong.

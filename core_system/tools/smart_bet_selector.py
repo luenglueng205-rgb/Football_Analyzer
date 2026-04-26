@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 
-from core.recommendation_schema import RecommendationSchemaAdapter
+from core_system.core.recommendation_schema import RecommendationSchemaAdapter
 
 class SmartBetSelector:
     """

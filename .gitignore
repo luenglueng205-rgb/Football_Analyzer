@@ -29,3 +29,10 @@ openclaw_workspace/runtime/
 *.sqlite3
 *.db
 *.sqlite
+
+# Archiving & Large Files
+backups/
+*.tar.gz
+*.db
+*.sqlite3
+core_system/workspace/datasets/raw/*.json

@@ -10,7 +10,7 @@ from scipy.stats import poisson
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 try:
-    from skills.lottery_math_engine import LotteryMathEngine
+    from core_system.tools.math.lottery_math_engine import LotteryMathEngine
 except ImportError:
     LotteryMathEngine = None
 

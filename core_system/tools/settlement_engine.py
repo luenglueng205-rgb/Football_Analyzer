@@ -101,6 +101,11 @@ class SettlementEngine:
                 "ZUCAI_RENJIU": wdl,
                 "ZUCAI_6_HTFT": htft,
                 "ZUCAI_4_GOALS": goals,
+                
+                # 兼容 ticket_builder 标准化出来的无前缀 play_type
+                "SFGG": beidan_handicap_wdl,
+                "MIXED_PARLAY": wdl,  # 混合过关结算依赖具体场次玩法，这里提供默认占位
+                "HANDICAP": jingcai_handicap_wdl, # 默认映射竞彩让球结果
             }
         )
 

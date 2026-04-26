@@ -1,4 +1,5 @@
-# NousResearch Hermes Agent
-hermes-agent
-openai
-pydantic
+# Hermes compatibility scripts under core_system/scripts/ still rely on the
+# same standalone runtime packages. The current tree does not directly import a
+# separate `hermes-agent` package; that name only appears in commented example
+# code inside scripts/hermes_adapter.py.
+-r requirements.txt

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
-from tools.market_probability_engine import MarketProbabilityEngine
+from core_system.tools.market_probability_engine import MarketProbabilityEngine
 
 _MODEL_MARKET_BLEND = 0.7
 
@@ -243,16 +243,46 @@ class RecommendationSchemaAdapter:
             market = str(b.get("market") or "UNKNOWN")
             play_type = None
             if lt == "JINGCAI":
-                if market == "1x2":
+                if market == "1x2" or market == "WDL":
                     play_type = "JINGCAI_WDL"
-                elif market.startswith("handicap"):
+                elif market.startswith("handicap") or market == "HANDICAP_WDL":
                     play_type = "JINGCAI_HANDICAP_WDL"
-                elif market == "total":
+                elif market == "total" or market == "GOALS":
                     play_type = "JINGCAI_GOALS"
+                elif market == "cs" or market == "CS":
+                    play_type = "JINGCAI_CS"
+                elif market == "htft" or market == "HTFT":
+                    play_type = "JINGCAI_HTFT"
+                elif market == "mixed" or market == "MIXED_PARLAY":
+                    play_type = "JINGCAI_MIXED_PARLAY"
+                else:
+                    play_type = f"JINGCAI_{market.upper()}"
             elif lt == "BEIDAN":
-                play_type = "BEIDAN_WDL"
+                if market == "1x2" or market == "WDL":
+                    play_type = "BEIDAN_WDL"
+                elif market == "sfgg" or market == "SFGG":
+                    play_type = "BEIDAN_SFGG"
+                elif market == "sxds" or market == "UP_DOWN_ODD_EVEN":
+                    play_type = "BEIDAN_UP_DOWN_ODD_EVEN"
+                elif market == "total" or market == "GOALS":
+                    play_type = "BEIDAN_GOALS"
+                elif market == "cs" or market == "CS":
+                    play_type = "BEIDAN_CS"
+                elif market == "htft" or market == "HTFT":
+                    play_type = "BEIDAN_HTFT"
+                else:
+                    play_type = f"BEIDAN_{market.upper()}"
             elif lt == "ZUCAI":
-                play_type = "ZUCAI_RENJIU"
+                if market == "14_match" or market == "14_MATCH":
+                    play_type = "ZUCAI_14_MATCH"
+                elif market == "renjiu" or market == "RENJIU":
+                    play_type = "ZUCAI_RENJIU"
+                elif market == "6_htft" or market == "6_HTFT":
+                    play_type = "ZUCAI_6_HTFT"
+                elif market == "4_goals" or market == "4_GOALS":
+                    play_type = "ZUCAI_4_GOALS"
+                else:
+                    play_type = f"ZUCAI_{market.upper()}"
 
             recommended_bets.append(
                 RecommendedBet(

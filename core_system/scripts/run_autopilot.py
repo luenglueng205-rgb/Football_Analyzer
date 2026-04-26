@@ -167,8 +167,8 @@ async def main():
         except Exception as e:
             dashboard.add_trade({"time": datetime.now().strftime("%H:%M:%S"), "summary": f"⚠️ Error: {str(e)[:50]}"})
 
-    bus.subscribe("ODDS_TICK", handle_tick)
-    bus.subscribe("ODDS_ALERT", handle_alert)
+    await bus.subscribe("ODDS_TICK", handle_tick)
+    await bus.subscribe("ODDS_ALERT", handle_alert)
 
     daemon = RealTimeOddsDaemon(
         match_id=args.match_id,

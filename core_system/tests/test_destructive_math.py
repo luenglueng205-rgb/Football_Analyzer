@@ -5,7 +5,7 @@ import os
 # Ensure the standalone_workspace directory is in sys.path so we can import skills
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from skills.lottery_math_engine import LotteryMathEngine
+from core_system.tools.math.lottery_math_engine import LotteryMathEngine
 
 def test_extreme_xg_values():
     engine = LotteryMathEngine()
