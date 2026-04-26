@@ -26,6 +26,24 @@ class SocialNewsListener:
         self._cache = {}
         self._cache_lock = threading.Lock()
         
+        # 加载本地 SLM (Phase 2)
+        self.use_local_slm = os.getenv("USE_LOCAL_SLM", "true").lower() in ("true", "1", "yes")
+        self.slm_classifier = None
+        if self.use_local_slm and not self.use_mock:
+            try:
+                from transformers import pipeline
+                print("   -> 🧠 [ZSA 快轨] 正在预加载本地轻量级 NLP 模型 (Local SLM)...")
+                # 使用 pipeline，自动下载并加载模型到内存。首次运行可能需要下载几百MB。
+                self.slm_classifier = pipeline(
+                    "zero-shot-classification", 
+                    model="cross-encoder/nli-distilroberta-base",
+                    device=-1 # 强制使用 CPU 保证通用性，如果需要极速可配置 mps/cuda
+                )
+                print("   -> ⚡ [ZSA 快轨] 本地 NLP 模型加载完毕，准备毫秒级推演！")
+            except Exception as e:
+                print(f"   -> ❌ [ZSA 快轨] 本地模型加载失败，将回退至云端 LLM: {e}")
+                self.use_local_slm = False
+        
         # 启动后台常驻轮询线程
         if not self.use_mock:
             self._polling_thread = threading.Thread(target=self._background_poll, daemon=True)
@@ -136,7 +154,70 @@ class SocialNewsListener:
                 }
 
     def _analyze_xg_impact_with_llm(self, team_name: str, news_text: str) -> float:
-        """调用 LLM 将自然语言新闻转化为量化的 xG (预期进球) 影响"""
+        """路由调度：优先使用毫秒级本地模型"""
+        if getattr(self, 'use_local_slm', False) and getattr(self, 'slm_classifier', None):
+            return self._analyze_with_local_slm(team_name, news_text)
+        else:
+            return self._analyze_with_cloud_llm(team_name, news_text)
+
+    def _analyze_with_local_slm(self, team_name: str, news_text: str) -> float:
+        """内存穿透，极速本地推理"""
+        if not self.slm_classifier:
+            return 0.0
+            
+        try:
+            start_t = time.perf_counter()
+            
+            # 原子标签，提升 NLI 模型的匹配度
+            candidate_labels = [
+                "player injury", 
+                "player suspension", 
+                "red card", 
+                "player return from injury", 
+                "team morale boost", 
+                "neutral news"
+            ]
+            
+            # 极速本地前向传播，增加 hypothesis_template 提升置信度
+            result = self.slm_classifier(
+                news_text, 
+                candidate_labels,
+                hypothesis_template="This football news is about {}."
+            )
+            
+            top_label = result['labels'][0]
+            confidence = result['scores'][0]
+            
+            impact = 0.0
+            
+            negative_labels = ["player injury", "player suspension", "red card"]
+            positive_labels = ["player return from injury", "team morale boost"]
+            
+            # 分层阈值判定
+            if top_label in negative_labels:
+                if confidence > 0.55:
+                    impact = -0.8
+                elif confidence >= 0.40:
+                    # 灰色地带兜底：结合关键词
+                    if any(kw in news_text.lower() for kw in ["injur", "miss", "out", "red card", "suspend", "缺阵", "伤", "红牌"]):
+                        impact = -0.8
+            elif top_label in positive_labels:
+                if confidence > 0.55:
+                    impact = 0.3
+                elif confidence >= 0.40:
+                    if any(kw in news_text.lower() for kw in ["return", "back", "boost", "复出", "回归", "振奋"]):
+                        impact = 0.3
+            
+            end_t = time.perf_counter()
+            print(f"   -> ⚡ [Local SLM] 本地推理完成，耗时: {(end_t - start_t)*1000:.2f}ms | 标签: {top_label} ({confidence:.2f}) -> Impact: {impact}")
+            return impact
+            
+        except Exception as e:
+            print(f"   -> ⚠️ [Local SLM] 本地推理异常: {e}")
+            return 0.0
+
+    def _analyze_with_cloud_llm(self, team_name: str, news_text: str) -> float:
+        """原有的调用云端 LLM 的逻辑"""
         api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
         base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")
         model_name = os.environ.get("MODEL_NAME", "gpt-4o-mini")
