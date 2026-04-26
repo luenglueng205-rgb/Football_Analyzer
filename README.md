@@ -8,15 +8,24 @@
 
 系统采用全异步、内存驻留的双轨架构，在启动前请确保环境配置正确。
 
-### 1.1 安装依赖
+### 1.1 恢复系统“记忆与粮草” (首次克隆必做)
+为了绕过 GitHub 100MB 的单文件上传限制，系统近 1GB 的历史比赛数据集和 ChromaDB 向量数据库被切分成了 50MB 的小块上传。
+
+克隆代码后，**请务必首先执行数据恢复脚本**：
+```bash
+# 执行后会自动将分卷数据合并并解压至 core_system/workspace/ 目录
+./core_system/workspace_init/restore.sh
+```
+
+### 1.2 安装依赖
 确保您已安装 Python 3.10+，并在项目根目录下执行：
 ```bash
 pip install -r requirements.txt
 # 包含 transformers, torch, langchain, langgraph, openai 等核心库
 ```
 
-### 1.2 环境变量配置
-在项目根目录创建 `.env` 文件（系统极度依赖大模型推演，**务必配置 API Key**）：
+### 1.3 环境变量配置
+在项目根目录创建或编辑 `.env` 文件（系统极度依赖大模型推演，**务必配置 API Key**）：
 ```env
 # 主脑大模型配置 (用于 MCTS 多分支推演与 RLEF 赛后反思)
 OPENAI_API_KEY=your_api_key_here
