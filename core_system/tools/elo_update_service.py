@@ -18,12 +18,17 @@ ELO Update Service — 赛后 ELO 自动更新服务
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+
+from core_system.tools.elo_storage import ELOStorage
+from core_system.tools.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
-# 默认 ELO 数据目录（与 elo_storage.py 保持一致）
-_DEFAULT_ELO_DIR = "data/elo"
+# 默认 ELO 存储目录，指向 workspace/data/elo
+_DEFAULT_ELO_DIR = os.path.join(data_dir(), "elo")
 
 
 class ELOUpdateService:

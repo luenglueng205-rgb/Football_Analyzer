@@ -7,18 +7,19 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 import time
 import argparse
+from core_system.tools.paths import data_dir, HISTORICAL_DATA_FILENAME, datasets_dir
 
 # Setup paths
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PROJECT_ROOT)
 
-from tools.memory_manager import MemoryManager
+from core_system.tools.memory_manager import MemoryManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # 定义断点续传的游标文件
-CHECKPOINT_FILE = os.path.join(PROJECT_ROOT, "data", "ingestion_checkpoint.json")
+CHECKPOINT_FILE = os.path.join(data_dir(), "ingestion_checkpoint.json")
 
 def load_checkpoint() -> int:
     """加载断点续传的游标（已处理的记录数）"""
@@ -77,7 +78,7 @@ async def ingest_historical_data(batch_size: int = 500):
     """
     Ingest the massive 220k match dataset into ChromaDB as episodic memory with resume support.
     """
-    data_path = os.path.join(PROJECT_ROOT, "..", "COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json")
+    data_path = os.path.join(datasets_dir("raw"), HISTORICAL_DATA_FILENAME)
     if not os.path.exists(data_path):
         logger.error(f"Data file not found at {data_path}")
         return
@@ -94,7 +95,7 @@ async def ingest_historical_data(batch_size: int = 500):
     
     start_index = load_checkpoint()
     if start_index >= total_matches:
-        logger.info("所有数据已注入完毕！如果要重新注入，请删除 data/ingestion_checkpoint.json")
+        logger.info("所有数据已注入完毕！如果要重新注入，请删除 data_dir() 下的 ingestion_checkpoint.json")
         return
         
     logger.info(f"断点续传启动：将从第 {start_index} 条记录开始注入，剩余 {total_matches - start_index} 条。")

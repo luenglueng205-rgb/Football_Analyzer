@@ -207,7 +207,7 @@ def _generate_drift_bloat_diagnosis(*, ws_root: Path, repo_root: Optional[Path],
             "id": "cut_root_data_dependency",
             "title": "切断对 repo_root/data 的隐式依赖（只认 STANDALONE_FOOTBALL_DATA_DIR）",
             "files": [
-                "data/",
+                "workspace/data/",
                 "standalone_workspace/tools/paths.py",
             ],
         },
@@ -626,9 +626,9 @@ def collect_self_audit(
 
     repo_data_dir = (rp_root / "data").resolve() if rp_root else None
 
-    raw_rel = Path("data") / "raw" / "COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json"
+    raw_rel = Path("workspace") / "data" / "raw" / "COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json"
     raw_repo_root_rel = Path("COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json")
-    chinese_rel = Path("data") / "chinese_mapped"
+    chinese_rel = Path("workspace") / "data" / "chinese_mapped"
     chroma_rel = Path("chroma_db")
 
     root_stats: Dict[str, Any] = {"available": False}

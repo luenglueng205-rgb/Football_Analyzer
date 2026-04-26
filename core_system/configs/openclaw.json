@@ -135,11 +135,11 @@
   "memory": {
     "episodic": {
       "enabled": true,
-      "storage": "data/memory/episodic_memory.json"
+      "storage": "memory/episodic_memory.json"
     },
     "semantic": {
       "enabled": true,
-      "storage": "data/memory/reflections.json"
+      "storage": "memory/reflections.json"
     }
   },
 

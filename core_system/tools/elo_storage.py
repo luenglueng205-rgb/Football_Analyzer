@@ -25,15 +25,17 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from core_system.tools.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
 # 默认 data 子目录
-_DEFAULT_ELO_DIR = "data/elo"
+_DEFAULT_ELO_DIR = os.path.join(data_dir(), "elo")
 
 
 class ELOStorage:

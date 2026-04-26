@@ -11,7 +11,7 @@ def _repo_root() -> Path:
 
 
 def _knowledge_base_root() -> Path:
-    return _workspace_root() / "global_knowledge_base"
+    return _workspace_root() / "workspace"
 
 
 def _default_data_dir() -> Path:
@@ -70,7 +70,7 @@ def datasets_dir(*parts: str) -> str:
 def chroma_db_dir(*parts: str) -> str:
     """
     返回 ChromaDB 数据库目录路径。
-    默认位于 global_knowledge_base/chroma_db，
+    默认位于 workspace/chroma_db，
     可通过环境变量 STANDALONE_FOOTBALL_CHROMA_DB_DIR 覆盖。
     """
     base = os.getenv("STANDALONE_FOOTBALL_CHROMA_DB_DIR")
