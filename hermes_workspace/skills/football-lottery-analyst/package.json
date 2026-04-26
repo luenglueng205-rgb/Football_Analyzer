@@ -1,0 +1,11 @@
+{
+  "name": "football-lottery-analyst",
+  "version": "1.0.0",
+  "description": "中国体育彩票足球彩票智能分析技能",
+  "main": "index.js",
+  "author": "CodeBuddy Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

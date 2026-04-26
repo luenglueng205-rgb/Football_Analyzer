@@ -1,0 +1,38 @@
+# Core runtime used by scripts/, tools/, core/ and tests/
+chromadb
+numpy>=1.24.0
+scipy
+pandas
+pyarrow>=14.0.1
+requests
+httpx
+beautifulsoup4
+openai
+python-dotenv>=1.0.0
+pydantic
+qrcode[pil]
+rich
+tqdm
+pytest
+
+# LLM / graph modules imported by optional workflows
+langgraph>=0.0.26
+langchain-core>=0.1.0
+langchain-openai>=0.1.0
+mcp
+
+# Browser / web search integrations
+browser-use
+playwright>=1.40.0
+ddgs
+duckduckgo_search
+
+# Local model and training helpers
+onnxruntime>=1.15.0
+torch>=2.0.0
+
+# Monitoring / observability
+sentry-sdk[fastapi]
+
+# P3-3: Redis 分布式缓存
+redis>=5.0.0

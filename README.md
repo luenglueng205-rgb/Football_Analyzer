@@ -53,11 +53,16 @@ git clone https://github.com/luenglueng205-rgb/Football_Analyzer.git
 cd Football_Analyzer
 ```
 
+系统内含 **3 个绝对独立的版本（互不干涉，拥有独立的数据库和内存）**：
+- `standalone_workspace/`：纯 Python 独立守护版（自带 LangGraph）。
+- `openclaw_workspace/`：OpenClaw 深度适配版（剥离 LangGraph，暴露 JSON Schema 接口，支持 100% 本地沙箱权限）。
+- `hermes_workspace/`：Hermes Agent 深度适配版（专为 Hermes 2 Pro/3 的 Strict Function Calling 打造）。
+
 ### 2. 恢复系统的“记忆与粮草” (核心！)
-**必须执行此脚本**，它会自动合并分卷包并解压，将 22 万场比赛记忆瞬间注入系统：
+**必须执行此脚本**，它会自动合并分卷包，并将 22 万场比赛记忆和 ChromaDB **同时注入到这三个独立版本的目录中**：
 ```bash
-chmod +x ./core_system/workspace_init/restore.sh
-./core_system/workspace_init/restore.sh
+chmod +x ./standalone_workspace/workspace_init/restore.sh
+./standalone_workspace/workspace_init/restore.sh
 ```
 
 ### 3. 安装依赖与配置环境
@@ -91,7 +96,7 @@ AUTO_TUNER_USE_LLM=true
 - **白天**：自动扫描赛程，拦截垃圾赛事，对高价值比赛启动 MCTS 推演。
 - **午夜**：自动唤醒 RLEF 引擎复盘盈亏并微调参数。
 ```bash
-python3 core_system/core/digital_life/heartbeat_daemon.py
+python3 standalone_workspace/core/digital_life/heartbeat_daemon.py
 ```
 
 ### 2. 实验室：测试各个前沿架构模块
@@ -99,19 +104,19 @@ python3 core_system/core/digital_life/heartbeat_daemon.py
 
 - **测试 ZSA 5ms 极速截胡** (模拟突发伤病新闻)：
   ```bash
-  python3 core_system/tests/architecture_tests/test_zsa_front_running.py
+  python3 standalone_workspace/tests/architecture_tests/test_zsa_front_running.py
   ```
 - **测试 GWM 空间战术推演 + MCTS 辩论** (模拟高复杂度欧冠决赛)：
   ```bash
-  python3 core_system/tests/architecture_tests/test_gwm_mcts_parallel.py
+  python3 standalone_workspace/tests/architecture_tests/test_gwm_mcts_parallel.py
   ```
 - **测试周末 50 场并发时的马科维茨风控** (观察全局缩水保护)：
   ```bash
-  python3 core_system/scripts/portfolio_batch_runner.py
+  python3 standalone_workspace/scripts/portfolio_batch_runner.py
   ```
 - **测试 RLEF 赛后反思闭环** (强行注入亏损，看 AI 如何修改自己的代码权重)：
   ```bash
-  python3 core_system/tests/architecture_tests/test_rlef_feedback_loop.py
+  python3 standalone_workspace/tests/architecture_tests/test_rlef_feedback_loop.py
   ```
 
 ### 3. 终极武器：AI 全自动量化投研 (Quant Researcher)
@@ -119,7 +124,7 @@ python3 core_system/core/digital_life/heartbeat_daemon.py
 它会**自己构思数学公式 -> 自己写 Python 策略代码 -> 自己在安全沙箱里跑几十万条数据的回测 -> 计算夏普比率**。
 如果发现能打破记录的“神级策略”，它会提交一份研报等你审批（Human Approval Gate）：
 ```bash
-python3 core_system/scripts/run_quant_researcher.py
+python3 standalone_workspace/scripts/run_quant_researcher.py
 ```
 
 ---
@@ -128,7 +133,7 @@ python3 core_system/scripts/run_quant_researcher.py
 
 ```text
 ├── backups/                             # 系统的物理快照备份档案
-├── core_system/
+├── standalone_workspace/                # 独立版系统 (Standalone) - 自带 LangGraph，适合个人跑实盘
 │   ├── agents/                          # 智能体目录 (AutoTuner, QuantResearcher 等)
 │   ├── core/                            # 核心引擎 (Agentic OS, LangGraph 状态机, Heartbeat)
 │   ├── docs/                            # 文档与系统演化经验 (DYNAMIC_EXPERIENCE.md)
@@ -140,6 +145,8 @@ python3 core_system/scripts/run_quant_researcher.py
 │   │   ├── data/                        # SQLite 账本 (ledger.db), ChromaDB 向量库, 回测报告
 │   │   └── datasets/                    # 海量 JSON 历史数据集
 │   └── workspace_init/                  # GitHub 分卷压缩包与数据恢复脚本
+├── openclaw_workspace/                  # OpenClaw 深度适配版 - 剥离 LangGraph，暴露原生 Tools
+├── hermes_workspace/                    # Hermes 深度适配版 - 剥离 LangChain，严格函数调用风控
 ├── .env.example                         # 环境变量配置参考
 ├── README.md                            # 本文档
 └── requirements.txt                     # 依赖清单
@@ -150,8 +157,8 @@ python3 core_system/scripts/run_quant_researcher.py
 ## 📈 监控与查账 (Monitoring)
 
 系统是冷酷无情的，它所有的交易记录、滑点、盈亏（PnL）都记录在本地的高并发 SQLite 数据库中。
-- **账本位置**: [core_system/workspace/data/ledger.db](file:///absolute/path/to/core_system/workspace/data/ledger.db)
-- **演化日志**: 打开 [core_system/docs/DYNAMIC_EXPERIENCE.md](file:///absolute/path/to/core_system/docs/DYNAMIC_EXPERIENCE.md)，你可以看到这个 AI 是如何在市场的毒打下逐渐变得越来越聪明的。
+- **账本位置**: [standalone_workspace/workspace/data/ledger.db](file:///absolute/path/to/standalone_workspace/workspace/data/ledger.db)
+- **演化日志**: 打开 [standalone_workspace/docs/DYNAMIC_EXPERIENCE.md](file:///absolute/path/to/standalone_workspace/docs/DYNAMIC_EXPERIENCE.md)，你可以看到这个 AI 是如何在市场的毒打下逐渐变得越来越聪明的。
 
 ---
 > **Disclaimer (免责声明)**: 本系统仅供人工智能架构、时空图神经网络及量化投资组合理论的学术研究与技术探讨。系统内置的所有体彩出票均在本地 SQLite 虚拟账本中模拟完成，不包含任何真实的自动化真金投注接口。请遵守当地法律法规，理性看待体育赛事。

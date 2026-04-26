@@ -35,4 +35,8 @@ backups/
 *.tar.gz
 *.db
 *.sqlite3
-core_system/workspace/datasets/raw/*.json
+*.bin
+*workspace/datasets/raw/*.json
+*workspace/data/chroma_db/
+*workspace/data/*.json
+*workspace/data/backtest_reports/

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture: Path C (RLEF Hub)</title>
+    <!-- 引入 Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#e0f2fe',
+                primaryTextColor: '#0f172a',
+                primaryBorderColor: '#0284c7',
+                lineColor: '#475569',
+                secondaryColor: '#f1f5f9',
+                tertiaryColor: '#fff'
+            }
+        });
+    </script>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --accent: #0284c7;
+        }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1em;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        .card h2 {
+            margin-top: 0;
+            border-bottom: 2px solid var(--bg-color);
+            padding-bottom: 10px;
+            color: var(--text-main);
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px dashed #cbd5e1;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>交互范式对比：RLEF中枢下的 GWM 与 ZSA</h1>
+            <p>在 Path C (以 RLEF 为中枢的三合一系统) 架构下，生成式世界模型 (GWM) 与 零样本套利 (ZSA) 的三种可能交互方式</p>
+        </div>
+
+        <div class="card">
+            <h2>模式一：GWM 作为沙盘，ZSA 作为提案者 (前置模拟验证)</h2>
+            <p><strong>机制</strong>：ZSA 发现套利机会（提案），但不直接执行。提案送入 GWM 进行未来状态推演。RLEF 根据 GWM 的模拟结果计算预期 Reward，决定是否在真实环境执行。</p>
+            <div class="mermaid">
+                graph LR
+                    classDef rlef fill:#bae6fd,stroke:#0284c7,stroke-width:3px,color:#0f172a;
+                    classDef zsa fill:#fef08a,stroke:#ca8a04,stroke-width:2px,color:#0f172a;
+                    classDef gwm fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#0f172a;
+                    classDef env fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#0f172a;
+
+                    Env[真实市场环境]:::env --> ZSA(ZSA: 发现零样本套利机会):::zsa
+                    ZSA -- "套利动作提案" --> GWM(GWM: 潜空间战术推演):::gwm
+                    GWM -- "模拟赛果 & 预期 Reward" --> RLEF((RLEF 中枢)):::rlef
+                    RLEF -- "批准执行 (Execute)" --> Env
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>模式二：双轨并行，ZSA 作为异常捕获器 (长短线分离)</h2>
+            <p><strong>机制</strong>：RLEF 与 GWM 形成主内循环（慢思考，长线策略）。ZSA 作为“快车道”监听真实环境，发现极端机会立刻执行。ZSA 的真实盈亏作为强反馈注入 RLEF，强制 GWM 更新认知。</p>
+            <div class="mermaid">
+                graph TD
+                    classDef rlef fill:#bae6fd,stroke:#0284c7,stroke-width:3px,color:#0f172a;
+                    classDef zsa fill:#fef08a,stroke:#ca8a04,stroke-width:2px,color:#0f172a;
+                    classDef gwm fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#0f172a;
+                    classDef env fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#0f172a;
+
+                    RLEF((RLEF 中枢)):::rlef <--> |"内循环训练 (慢思考)"| GWM(GWM: 世界模型模拟):::gwm
+                    
+                    Env[真实市场环境]:::env --> |"突发情报/极端盘口"| ZSA(ZSA: 零样本套利):::zsa
+                    ZSA --> |"毫秒级直接执行 (快思考)"| Env
+                    
+                    ZSA -. "真实盈亏反馈 (Reward)" .-> RLEF
+                    RLEF -. "更新认知参数" .-> GWM
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>模式三：RLEF 作为动态路由中枢 (不确定性驱动)</h2>
+            <p><strong>机制</strong>：RLEF 评估当前环境的“熵”。稳态下，RLEF 依赖 GWM 推演决策；突变下（如突发红牌），RLEF 将控制权动态切换给 ZSA 进行高频套利。两者结果汇聚回 RLEF。</p>
+            <div class="mermaid">
+                graph TD
+                    classDef rlef fill:#bae6fd,stroke:#0284c7,stroke-width:3px,color:#0f172a;
+                    classDef zsa fill:#fef08a,stroke:#ca8a04,stroke-width:2px,color:#0f172a;
+                    classDef gwm fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#0f172a;
+                    classDef env fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#0f172a;
+
+                    Env[真实市场环境]:::env --> RLEF((RLEF 中枢<br>计算环境熵)):::rlef
+                    
+                    RLEF -- "低熵 (稳态)" --> GWM(GWM: 常规深度推演):::gwm
+                    RLEF -- "高熵 (突变)" --> ZSA(ZSA: 零样本突击):::zsa
+                    
+                    GWM --> |执行结果| RLEF
+                    ZSA --> |执行结果| RLEF
+                    
+                    RLEF --> |"统一经验池更新"| RLEF
+            </div>
+        </div>
+    </div>
+</body>
+</html>
