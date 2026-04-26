@@ -29,7 +29,7 @@ class SocialNewsListener:
         # 加载本地 SLM (Phase 2)
         self.use_local_slm = os.getenv("USE_LOCAL_SLM", "true").lower() in ("true", "1", "yes")
         self.slm_classifier = None
-        if self.use_local_slm and not self.use_mock:
+        if self.use_local_slm:
             try:
                 from transformers import pipeline
                 print("   -> 🧠 [ZSA 快轨] 正在预加载本地轻量级 NLP 模型 (Local SLM)...")
@@ -49,6 +49,21 @@ class SocialNewsListener:
             self._polling_thread = threading.Thread(target=self._background_poll, daemon=True)
             self._polling_thread.start()
             print("   -> 🚀 [ZSA 快轨] SocialNewsListener 常驻内存守护线程已启动...")
+            
+        # ZSA Phase 3: 内存总线回调机制
+        self._callbacks = []
+
+    def register_callback(self, callback_func):
+        """注册回调函数，当检测到极端情报时触发截胡"""
+        self._callbacks.append(callback_func)
+
+    def _fire_callbacks(self, team: str, news: str, impact: float):
+        for cb in self._callbacks:
+            try:
+                # 异步执行回调，避免阻塞监听器
+                threading.Thread(target=cb, args=(team, news, impact), daemon=True).start()
+            except Exception as e:
+                print(f"   -> ⚠️ [ZSA 快轨] 回调执行异常: {e}")
 
     def _background_poll(self):
         """后台轮询线程：不断抓取 RSS/Twitter 存入缓存"""
@@ -82,6 +97,11 @@ class SocialNewsListener:
                         current_cached = self._cache.get(team, {}).get("news", "")
                         if combined != current_cached:
                             xg_impact = self._analyze_xg_impact_with_llm(team, combined)
+                            
+                            # 触发内存总线截胡
+                            if xg_impact <= -0.8 or xg_impact >= 0.5:
+                                self._fire_callbacks(team, combined, xg_impact)
+                                
                             with self._cache_lock:
                                 self._cache[team] = {
                                     "timestamp": time.time(),
@@ -143,6 +163,11 @@ class SocialNewsListener:
         if news_items:
             combined = " | ".join(news_items[:3])
             xg_impact = self._analyze_xg_impact_with_llm(team_name, combined)
+            
+            # 触发内存总线截胡
+            if xg_impact <= -0.8 or xg_impact >= 0.5:
+                self._fire_callbacks(team_name, combined, xg_impact)
+                
             with self._cache_lock:
                 self._cache[team_name] = {
                     "timestamp": time.time(),
@@ -275,3 +300,18 @@ class SocialNewsListener:
             "source": "twitter_insider_webhook",
             "latency_ms": random.randint(15, 80)
         }
+
+    def inject_mock_news(self, team_name: str, news_text: str, impact: float):
+        """用于测试：手动注入假新闻并触发截胡"""
+        with self._cache_lock:
+            self._cache[team_name] = {
+                "timestamp": time.time(),
+                "team": team_name,
+                "news": news_text,
+                "xg_impact": impact,
+                "source": "manual_inject",
+                "latency_ms": 0
+            }
+        print(f"   -> 💉 [ZSA 快轨] 手动注入情报: {news_text} (Impact: {impact})")
+        if impact <= -0.8 or impact >= 0.5:
+            self._fire_callbacks(team_name, news_text, impact)
