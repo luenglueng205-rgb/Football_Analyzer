@@ -53,13 +53,10 @@ git clone https://github.com/luenglueng205-rgb/Football_Analyzer.git
 cd Football_Analyzer
 ```
 
-系统内含 **3 个绝对独立的版本（互不干涉，拥有独立的数据库和内存）**：
-- `standalone_workspace/`：纯 Python 独立守护版（自带 LangGraph）。
-- `openclaw_workspace/`：OpenClaw 深度适配版（剥离 LangGraph，暴露 JSON Schema 接口，支持 100% 本地沙箱权限）。
-- `hermes_workspace/`：Hermes Agent 深度适配版（专为 Hermes 2 Pro/3 的 Strict Function Calling 打造）。
+当前版本为 **纯 Python 独立守护版 (Standalone)**，自带 LangGraph 状态机，适合个人本地跑实盘。
 
 ### 2. 恢复系统的“记忆与粮草” (核心！)
-**必须执行此脚本**，它会自动合并分卷包，并将 22 万场比赛记忆和 ChromaDB **同时注入到这三个独立版本的目录中**：
+**必须执行此脚本**，它会自动合并分卷包，并将 22 万场比赛记忆和 ChromaDB 注入系统：
 ```bash
 chmod +x ./standalone_workspace/workspace_init/restore.sh
 ./standalone_workspace/workspace_init/restore.sh
@@ -145,8 +142,6 @@ python3 standalone_workspace/scripts/run_quant_researcher.py
 │   │   ├── data/                        # SQLite 账本 (ledger.db), ChromaDB 向量库, 回测报告
 │   │   └── datasets/                    # 海量 JSON 历史数据集
 │   └── workspace_init/                  # GitHub 分卷压缩包与数据恢复脚本
-├── openclaw_workspace/                  # OpenClaw 深度适配版 - 剥离 LangGraph，暴露原生 Tools
-├── hermes_workspace/                    # Hermes 深度适配版 - 剥离 LangChain，严格函数调用风控
 ├── .env.example                         # 环境变量配置参考
 ├── README.md                            # 本文档
 └── requirements.txt                     # 依赖清单

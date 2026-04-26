@@ -40,3 +40,7 @@ backups/
 *workspace/data/chroma_db/
 *workspace/data/*.json
 *workspace/data/backtest_reports/
+
+# Experimental Agent Workspaces (Local Only)
+openclaw_workspace/
+hermes_workspace/
