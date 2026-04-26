@@ -153,7 +153,19 @@ def fetch_arbitrage_news(team_name: str) -> dict:
     """毫秒级新闻套利监听器：获取球队最新突发新闻（如伤停、内幕）。用于在庄家变盘前捕捉信息差并调整 xG 预期。"""
     return news_listener.fetch_latest_news(team_name)
 
-tools = [calculate_true_probs_for_all_markets, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script]
+@tool
+def simulate_latent_tactics(match_id: str, home_formation: str = "4-3-3", away_formation: str = "4-2-3-1") -> dict:
+    """
+    [GWM 顶级硬核工具] 调用生成式世界模型 (Generative World Model) 和时空图神经网络 (ST-GNN)。
+    摄取球场上 22 名球员的光学追踪坐标，计算防线高度、阵型紧凑度等高阶战术几何指标，
+    并在潜空间中推演下半场 15 分钟的战术走势和 xG 动量。
+    适用于高价值比赛的走地盘 (In-Play) 深度推演。
+    """
+    from core_system.skills.spatial_world_model.gwm_engine import GenerativeWorldModel
+    gwm = GenerativeWorldModel()
+    return gwm.rollout_next_15_mins(match_id, home_formation, away_formation)
+
+tools = [calculate_true_probs_for_all_markets, verify_risk, check_balance, execute_ticket_route, fetch_arbitrage_news, execute_quant_script, simulate_latent_tactics]
 tool_map = {t.name: t for t in tools}
 
 # ==========================================
@@ -473,6 +485,7 @@ def build_and_run_graph():
                 "2. 结合给定的赔率，挑选出期望值最高（比如竞彩的高赔率比分，或北单反抽水后的价值盘）的玩法组合。\n"
                 "3. 调用 verify_risk 对选中的玩法进行 EV 验证。\n"
                 "4. 验证通过后调用 execute_ticket_route 出票，必须明确指定 lottery_type(jingcai/beidan/zucai) 和 play_type。\n"
+                "5. (可选) 对于滚球(In-Play)或高价值比赛，可调用 simulate_latent_tactics 摄取 ST-GNN 空间数据，推演未来 15 分钟的战术剧本。\n"
                 "绝对不要自行编造赔率或概率！"
             )),
             HumanMessage(content="新情报：阿森纳今晚主力全出。竞彩比分 3:0 赔率为 12.50，北单上下单双 '上单' SP 预估为 3.20。请进行分析并出票。")
