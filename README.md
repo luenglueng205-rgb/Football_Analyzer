@@ -52,14 +52,14 @@ PYTHONPATH=. python3 core_system/core/digital_life/heartbeat_daemon.py
 
 在生产环境中，ZSA 会伴随系统初始化自动启动（见 `social_listener.py` 的 `__init__`）。如果您想单独测试突发新闻截胡：
 ```bash
-PYTHONPATH=. python3 test_zsa_front_running.py
+python3 core_system/tests/architecture_tests/test_zsa_front_running.py
 ```
 *此脚本模拟了阿森纳前锋受伤的突发事件，您将看到系统如何在 6ms 内完成做空出票。*
 
 ### 2.3 测试高价值比赛的 MCTS + GWM 联合推演
 如果您想观察系统在遇到复杂比赛（如欧冠决赛）时，是如何触发红蓝军辩论（MoA），并调用生成式世界模型（GWM）进行几何战术推演的：
 ```bash
-PYTHONPATH=. python3 test_gwm_mcts_parallel.py
+python3 core_system/tests/architecture_tests/test_gwm_mcts_parallel.py
 ```
 
 ---
