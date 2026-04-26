@@ -5,6 +5,8 @@ from typing import Dict, Any
 import requests
 import xml.etree.ElementTree as ET
 import re
+import json
+from core_system.tools.paths import data_dir
 
 class SocialNewsListener:
     """
@@ -53,6 +55,26 @@ class SocialNewsListener:
         # ZSA Phase 3: 内存总线回调机制
         self._callbacks = []
 
+        # RLEF: 动态加载 ZSA 触发阈值
+        self._load_zsa_thresholds()
+
+    def _load_zsa_thresholds(self):
+        self.neg_threshold = -0.8
+        self.pos_threshold = 0.5
+        try:
+            # 尝试从 hyperparams.json 读取
+            hp_path = os.path.join(os.path.dirname(__file__), "..", "..", "configs", "hyperparams.json")
+            if os.path.exists(hp_path):
+                with open(hp_path, "r", encoding="utf-8") as f:
+                    params = json.load(f)
+                    zsa_t = params.get("zsa_thresholds", {})
+                    if "negative_impact_threshold" in zsa_t:
+                        self.neg_threshold = float(zsa_t["negative_impact_threshold"])
+                    if "positive_impact_threshold" in zsa_t:
+                        self.pos_threshold = float(zsa_t["positive_impact_threshold"])
+        except Exception as e:
+            print(f"   -> ⚠️ [ZSA] 无法加载动态阈值，使用默认值: {e}")
+
     def register_callback(self, callback_func):
         """注册回调函数，当检测到极端情报时触发截胡"""
         self._callbacks.append(callback_func)
@@ -99,7 +121,7 @@ class SocialNewsListener:
                             xg_impact = self._analyze_xg_impact_with_llm(team, combined)
                             
                             # 触发内存总线截胡
-                            if xg_impact <= -0.8 or xg_impact >= 0.5:
+                            if xg_impact <= self.neg_threshold or xg_impact >= self.pos_threshold:
                                 self._fire_callbacks(team, combined, xg_impact)
                                 
                             with self._cache_lock:
@@ -165,7 +187,7 @@ class SocialNewsListener:
             xg_impact = self._analyze_xg_impact_with_llm(team_name, combined)
             
             # 触发内存总线截胡
-            if xg_impact <= -0.8 or xg_impact >= 0.5:
+            if xg_impact <= self.neg_threshold or xg_impact >= self.pos_threshold:
                 self._fire_callbacks(team_name, combined, xg_impact)
                 
             with self._cache_lock:
@@ -313,5 +335,5 @@ class SocialNewsListener:
                 "latency_ms": 0
             }
         print(f"   -> 💉 [ZSA 快轨] 手动注入情报: {news_text} (Impact: {impact})")
-        if impact <= -0.8 or impact >= 0.5:
+        if impact <= self.neg_threshold or impact >= self.pos_threshold:
             self._fire_callbacks(team_name, news_text, impact)

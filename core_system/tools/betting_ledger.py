@@ -76,6 +76,44 @@ class BettingLedger:
             "currency": "USDC"
         }
 
+    def get_recent_resolved_bets(self, agent_id: str, limit: int = 10, only_losses: bool = False) -> list:
+        """为 RLEF 提取最近已结算的订单"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            query = "SELECT * FROM bets WHERE agent_id=? AND status='RESOLVED'"
+            if only_losses:
+                query += " AND pnl < 0"
+            query += " ORDER BY timestamp DESC LIMIT ?"
+            
+            c.execute(query, (agent_id, limit))
+            rows = c.fetchall()
+            return [dict(r) for r in rows]
+
+    def get_agent_metrics(self, agent_id: str) -> dict:
+        """获取指定 Agent 的真实历史盈亏指标"""
+        with sqlite3.connect(self.db_path) as conn:
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*), SUM(stake), SUM(pnl) FROM bets WHERE agent_id=? AND status='RESOLVED'", (agent_id,))
+            row = c.fetchone()
+            total_resolved = row[0] or 0
+            total_stake = row[1] or 0.0
+            total_pnl = row[2] or 0.0
+            
+            c.execute("SELECT COUNT(*) FROM bets WHERE agent_id=? AND status='RESOLVED' AND pnl > 0", (agent_id,))
+            row_wins = c.fetchone()
+            wins = row_wins[0] if row_wins else 0
+            
+            win_rate = (wins / total_resolved) if total_resolved > 0 else 0.0
+            roi = (total_pnl / total_stake) if total_stake > 0 else 0.0
+            
+            return {
+                "total_resolved": total_resolved,
+                "win_rate": round(win_rate, 4),
+                "roi": round(roi, 4),
+                "total_pnl": round(total_pnl, 2)
+            }
+
     def execute_bet(self, agent_id: str, match_id: str, lottery_type: str, selection: str, odds: float, stake: float) -> dict:
         with sqlite3.connect(self.db_path) as conn:
             c = conn.cursor()

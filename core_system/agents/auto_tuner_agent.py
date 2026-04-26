@@ -22,8 +22,9 @@ class AutoTunerAgent:
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.seed = seed
         self._rng = random.Random(seed)
-        base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-        api_key = os.getenv("OPENAI_API_KEY", "dummy-key-for-test")
+        base_url = os.getenv("OPENAI_BASE_URL", os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"))
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY", "dummy-key-for-test")
+        self.model_name = os.getenv("MODEL_NAME", os.getenv("OPENAI_MODEL", "gpt-4o"))
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url) if AsyncOpenAI else None
 
     def _safe_read_hyperparams(self) -> dict:
@@ -40,6 +41,7 @@ class AutoTunerAgent:
                 "weights": {"fundamental_quant": 0.33, "contrarian_quant": 0.33, "smart_money_quant": 0.34},
                 "poisson_engine": {"xg_variance_penalty": 0.05, "draw_bias_adjustment": 1.05},
                 "risk_management": {"min_ev_threshold": 1.05, "max_stake_percent": 0.05, "fuzzy_banker_tolerance": 0.8},
+                "zsa_thresholds": {"negative_impact_threshold": -0.8, "positive_impact_threshold": 0.5},
                 "evolution_memory": {"total_simulations_run": 0, "win_rate": 0.0, "roi": 0.0, "latest_reflection": ""},
                 "evolution_audit": {"history": []},
             }
@@ -164,7 +166,10 @@ class AutoTunerAgent:
 
         use_llm = os.getenv("AUTO_TUNER_USE_LLM", "").strip().lower() in {"1", "true", "yes", "y", "on"}
         api_key = os.getenv("OPENAI_API_KEY", "dummy-key-for-test")
-        if not use_llm or not self.client or api_key in {"", "dummy-key-for-test", "dummy_key", "your_api_key_here"}:
+        
+        # FIX: Allow execution if client exists and we explicitly want to use LLM, even if API key wasn't explicitly set in environment
+        # (It might have been picked up from OPENAI_BASE_URL via proxy without needing a real key)
+        if not use_llm or not self.client:
             offline = self._offline_mutate(current_params=current_params, pnl_report=pnl_report)
             return {"reflection": offline["reflection"], "updated_hyperparams": offline["updated_params"], "changes": offline["changes"]}
         
@@ -195,7 +200,7 @@ class AutoTunerAgent:
   """
         try:
             response = await self.client.chat.completions.create(
-                model=self.model,
+                model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
             )
@@ -315,3 +320,91 @@ class AutoTunerAgent:
         last["after"] = self._extract_report_metrics(after_report)
         self._safe_write_hyperparams(params)
         return {"ok": True, "audit_entry": last}
+
+    async def reflect_on_real_ledger(self) -> dict:
+        """
+        [RLEF 核心闭环]
+        从真实账本读取 zsa_front_runner 和 agentic_os 的真实盈亏。
+        利用 LLM 反思，动态调整 ZSA 的触发敏感度和 Agentic OS 的策略权重。
+        """
+        from core_system.tools.betting_ledger import BettingLedger
+        ledger = BettingLedger()
+        
+        zsa_metrics = ledger.get_agent_metrics("zsa_front_runner")
+        os_metrics = ledger.get_agent_metrics("agentic_os")
+        
+        zsa_losses = ledger.get_recent_resolved_bets("zsa_front_runner", limit=5, only_losses=True)
+        os_losses = ledger.get_recent_resolved_bets("agentic_os", limit=5, only_losses=True)
+        
+        current_params = self._safe_read_hyperparams()
+        
+        logger.info("\n[🧬 RLEF Auto-Tuner] 正在从真实账本提取环境反馈 (Environment Feedback)...")
+        
+        use_llm = os.getenv("AUTO_TUNER_USE_LLM", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        
+        if not use_llm or not self.client:
+            logger.info("   -> [RLEF] LLM 未启用，跳过真实账本反思。")
+            return {"status": "skipped", "reason": "LLM not enabled"}
+
+        prompt = f"""
+你是由 RLEF (环境反馈强化学习) 驱动的自进化引擎。
+你目前正在监控双轨架构：ZSA（零样本快轨）与 Agentic OS（GWM慢轨）。
+
+【环境反馈 - 真实账本数据】
+ZSA 快轨表现：
+- 交易数: {zsa_metrics['total_resolved']} | 胜率: {zsa_metrics['win_rate']} | ROI: {zsa_metrics['roi']}
+- 最近亏损案例: {json.dumps(zsa_losses, ensure_ascii=False)}
+
+Agentic OS 慢轨表现：
+- 交易数: {os_metrics['total_resolved']} | 胜率: {os_metrics['win_rate']} | ROI: {os_metrics['roi']}
+- 最近亏损案例: {json.dumps(os_losses, ensure_ascii=False)}
+
+【当前参数状态】
+ZSA 阈值 (负数越小越严格): {json.dumps(current_params.get('zsa_thresholds', {}))}
+慢轨权重: {json.dumps(current_params.get('weights', {}))}
+
+任务：
+1. 诊断 ZSA 快轨是否因为“假新闻”或阈值不够严格导致频繁亏损。如果是，请降低敏感度（例如将 negative_impact_threshold 从 -0.8 改为 -0.85 或更低）。
+2. 诊断慢轨亏损原因，并给出针对慢轨的动态纪律 (golden_rule)。
+3. 返回更新后的参数。
+
+请严格返回以下 JSON 格式：
+{{
+   "reflection": "综合双轨表现的分析...",
+   "golden_rule": "写给慢轨的一句话实战纪律...",
+   "updated_hyperparams": {{
+       "weights": {{"fundamental_quant": 0.3, "contrarian_quant": 0.4, "smart_money_quant": 0.3}},
+       "zsa_thresholds": {{"negative_impact_threshold": -0.85, "positive_impact_threshold": 0.55}}
+   }}
+}}
+"""
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+            )
+            result = json.loads(response.choices[0].message.content)
+            
+            updated = current_params.copy()
+            new_params = result.get("updated_hyperparams", {})
+            
+            if "weights" in new_params:
+                updated["weights"] = self._weights_normalize(new_params["weights"])
+            if "zsa_thresholds" in new_params:
+                updated["zsa_thresholds"] = new_params["zsa_thresholds"]
+                
+            self._safe_write_hyperparams(updated)
+            
+            golden_rule = str(result.get("golden_rule") or "")
+            if golden_rule:
+                self._append_to_dynamic_experience(golden_rule)
+                
+            logger.info(f"✨ [RLEF 进化完成] 反思: {result.get('reflection')}")
+            logger.info(f"🚀 [RLEF] 新 ZSA 阈值: {updated.get('zsa_thresholds')}")
+            
+            return {"status": "success", "reflection": result.get("reflection"), "new_params": updated}
+            
+        except Exception as e:
+            logger.error(f"[RLEF] LLM 反思异常: {e}")
+            return {"status": "error", "error": str(e)}
