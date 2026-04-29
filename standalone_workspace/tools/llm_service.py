@@ -8,7 +8,8 @@ from typing import Dict, Any
 import httpx
 
 # 加载 .env
-load_dotenv()
+if os.getenv("AFA_SKIP_DOTENV") != "1":
+    load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +22,11 @@ class LLMService:
     @classmethod
     def get_client(cls):
         if cls._client is None:
-            api_key = os.getenv("OPENAI_API_KEY", "dummy_key")
-            base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+            from tools.llm_config import get_llm_settings
+
+            cfg = get_llm_settings(purpose="chat")
+            api_key = cfg["api_key"] or "dummy_key"
+            base_url = cfg["base_url"]
             
             # 兼容处理：防止旧版本 openai 报错
             try:
@@ -49,19 +53,18 @@ class LLMService:
         from openai import AsyncOpenAI
         import json
         
-        # Router logic
+        from tools.llm_config import get_llm_settings
+
+        purpose = "chat"
         if task_type == "vision":
-            api_key = os.getenv("OPENAI_API_KEY", "dummy_key")
-            base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-            model = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
+            purpose = "vision"
         elif task_type == "reasoning":
-            api_key = os.getenv("DEEPSEEK_API_KEY", "dummy_key")
-            base_url = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
-            model = os.getenv("DEEPSEEK_REASONING_MODEL", "deepseek-reasoner")
-        else:
-            api_key = os.getenv("OPENAI_API_KEY", "dummy_key")
-            base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-            model = os.getenv("OPENAI_MODEL", "gpt-4o-mini") # default cheap model
+            purpose = "reasoning"
+
+        cfg = get_llm_settings(purpose=purpose)
+        api_key = cfg["api_key"] or "dummy_key"
+        base_url = cfg["base_url"]
+        model = cfg["model"]
             
         if api_key == "dummy_key" or api_key == "your_api_key_here":
             if role == "AAR Analyst":
@@ -87,13 +90,16 @@ class LLMService:
         根据 Agent 提供的上下文数据，生成自然语言分析报告
         """
         try:
+            from tools.llm_config import get_llm_settings
+
             client = cls.get_client()
             # 如果没有配置真实的API KEY，返回模拟数据（避免程序报错中断）
             if client.api_key == "dummy_key" or client.api_key == "your_api_key_here":
                 raise ValueError("请在环境变量中配置有效的 OPENAI_API_KEY 以启动真实的 AI 推理。")
 
+            cfg = get_llm_settings(purpose="chat")
             response = client.chat.completions.create(
-                model="gpt-4o-mini", # 或 deepseek-chat, gpt-3.5-turbo
+                model=cfg["model"],
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"请根据以下硬核数据，生成专业的足彩分析研报：\n{data_context}"}
@@ -105,4 +111,3 @@ class LLMService:
         except Exception as e:
             logger.error(f"LLM 调用失败: {e}")
             return f"❌ AI 分析报告生成失败，请检查网络或 API Key。错误信息：{e}"
-

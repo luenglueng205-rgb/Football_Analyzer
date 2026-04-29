@@ -74,9 +74,14 @@ cp .env.example .env
 ```
 编辑 `.env` 文件：
 ```env
-OPENAI_API_KEY=sk-your-api-key-here
-MODEL_NAME=gpt-4o  # 或 deepseek-chat
-OPENAI_BASE_URL=https://api.openai.com/v1
+DEEPSEEK_API_KEY=sk-your-api-key-here
+DEEPSEEK_API_BASE=https://api.deepseek.com/v1
+DEEPSEEK_CHAT_MODEL=deepseek-chat
+DEEPSEEK_REASONING_MODEL=deepseek-reasoner
+
+OPENAI_API_KEY=
+OPENAI_BASE_URL=
+MODEL_NAME=
 
 USE_LOCAL_SLM=true
 AUTO_TUNER_USE_LLM=true

@@ -209,32 +209,15 @@ class BettingState(TypedDict):
 # ==========================================
 def get_base_llm():
     """获取无工具绑定的基础大模型，用于 MCTS 纯逻辑推演"""
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-    base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
-    model_name = os.getenv("MODEL_NAME", "gpt-4o")
-    
-    client_kwargs = {"api_key": api_key, "model": model_name, "temperature": 0.7} # MCTS需要更高的温度来产生发散性剧本
-    if base_url:
-        client_kwargs["base_url"] = base_url
-        
-    return ChatOpenAI(**client_kwargs)
+    from core.agentic_os.llm_factory import get_base_llm_kwargs
+
+    return ChatOpenAI(**get_base_llm_kwargs())
 
 def get_llm():
     """获取通过环境变量配置的真实大模型，并绑定硬核工具"""
-    api_key = os.getenv("OPENAI_API_KEY")
-    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    model_name = os.getenv("MODEL_NAME", "gpt-4o")
-    
-    if not api_key:
-        print("   -> ⚠️ [警告] 未配置 OPENAI_API_KEY！系统将退回演示模式，但由于移除了 Mock，可能会抛出异常。")
-        print("   -> 💡 [提示] 请在项目根目录创建 .env 文件，并填入 OPENAI_API_KEY。")
-        
-    llm = ChatOpenAI(
-        api_key=api_key,
-        base_url=base_url,
-        model=model_name,
-        temperature=0.0 # 体育投资要求绝对理性和确定性，Temperature设为0
-    )
+    from core.agentic_os.llm_factory import get_tool_llm_kwargs
+
+    llm = ChatOpenAI(**get_tool_llm_kwargs())
     
     # 彻底实现控制反转：将本地 Python 函数作为 Tools 绑定给大模型
     return llm.bind_tools(tools)

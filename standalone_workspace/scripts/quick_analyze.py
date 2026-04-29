@@ -4,7 +4,8 @@ import os, sys, json, asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from dotenv import load_dotenv
 
-load_dotenv()
+if os.getenv("AFA_SKIP_DOTENV") != "1":
+    load_dotenv()
 
 # 今日已知赔率（来自 The Odds API 成功抓取的数据）
 TODAY_MATCHES = [
@@ -92,13 +93,19 @@ TODAY_MATCHES = [
     },
 ]
 
+def get_client_settings():
+    from tools.llm_config import get_llm_settings
+
+    return get_llm_settings(purpose="chat")
+
 
 async def run_analysis():
     from openai import AsyncOpenAI
 
-    api_key = os.getenv("DEEPSEEK_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+    cfg = get_client_settings()
+    api_key = cfg["api_key"]
+    model = cfg["model"]
+    base_url = cfg["base_url"]
 
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
