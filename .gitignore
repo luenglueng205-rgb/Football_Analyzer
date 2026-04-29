@@ -19,13 +19,8 @@ __pycache__/
 .DS_Store
 
 # Project Specific Data (HUGE FILES - DO NOT COMMIT)
-global_knowledge_base/
-core_system/
-standalone_workspace/data/
-standalone_workspace/datasets/
-openclaw_workspace/data/
-openclaw_workspace/datasets/
-openclaw_workspace/runtime/
+standalone_workspace/workspace/data/
+standalone_workspace/workspace/datasets/
 
 # Databases
 *.sqlite3
@@ -38,11 +33,7 @@ backups/
 *.db
 *.sqlite3
 *.bin
-*workspace/datasets/raw/*.json
-*workspace/data/chroma_db/
-*workspace/data/*.json
-*workspace/data/backtest_reports/
-
-# Experimental Agent Workspaces (Local Only)
-openclaw_workspace/
-hermes_workspace/
+standalone_workspace/workspace/datasets/raw/*.json
+standalone_workspace/workspace/data/chroma_db/
+standalone_workspace/workspace/data/*.json
+standalone_workspace/workspace/data/backtest_reports/
