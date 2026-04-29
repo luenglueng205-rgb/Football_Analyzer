@@ -16,9 +16,11 @@ __pycache__/
 .vscode/
 .idea/
 .trae/
+.DS_Store
 
 # Project Specific Data (HUGE FILES - DO NOT COMMIT)
 global_knowledge_base/
+core_system/
 standalone_workspace/data/
 standalone_workspace/datasets/
 openclaw_workspace/data/

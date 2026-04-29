@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 
-EditionId = Literal["standalone", "openclaw"]
+EditionId = Literal["standalone"]
 
 
 @dataclass(frozen=True)

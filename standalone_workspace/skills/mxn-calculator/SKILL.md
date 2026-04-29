@@ -7,7 +7,7 @@ trigger:
   - "3串1"
   - "M串N"
   - "复式投注"
-metadata: {"openclaw": {"os": ["darwin", "linux"]}}
+metadata: {"os": ["darwin", "linux"]}
 ---
 
 # M串N计算器

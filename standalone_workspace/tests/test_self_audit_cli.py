@@ -10,7 +10,6 @@ from scripts import self_audit_cli
 def test_collect_self_audit_reports_root_vs_standalone_mismatch(tmp_path: Path):
     repo_root = tmp_path / "repo"
     ws_root = repo_root / "standalone_workspace"
-    (repo_root / "openclaw_workspace").mkdir(parents=True, exist_ok=True)
     (repo_root / "data" / "chroma_db" / "dummy").mkdir(parents=True, exist_ok=True)
     (repo_root / "data" / "raw").mkdir(parents=True, exist_ok=True)
     (repo_root / "data" / "raw" / "COMPLETE_FOOTBALL_DATA_FINAL_UPDATED.json").write_text("{}", encoding="utf-8")
@@ -34,7 +33,6 @@ def test_collect_self_audit_deep_reports_record_count_and_chroma_counts(tmp_path
 
     repo_root = tmp_path / "repo"
     ws_root = repo_root / "standalone_workspace"
-    (repo_root / "openclaw_workspace").mkdir(parents=True, exist_ok=True)
 
     root_raw_dir = repo_root / "data" / "raw"
     root_raw_dir.mkdir(parents=True, exist_ok=True)
@@ -78,7 +76,6 @@ def test_collect_self_audit_deep_reports_record_count_and_chroma_counts(tmp_path
 def test_self_audit_cli_run_outputs_json(tmp_path: Path):
     repo_root = tmp_path / "repo"
     ws_root = repo_root / "standalone_workspace"
-    (repo_root / "openclaw_workspace").mkdir(parents=True, exist_ok=True)
     (repo_root / "data").mkdir(parents=True, exist_ok=True)
     (ws_root / "data").mkdir(parents=True, exist_ok=True)
 

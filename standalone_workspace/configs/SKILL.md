@@ -29,12 +29,7 @@ trigger:
   - "跨玩法"
   - "套利"
   - "奖池"
-metadata: {"openclaw": {
-  "requires": {"bins": ["python3"], "env": [], "config": []},
-  "os": ["darwin", "linux"],
-  "always": true
-},
-  "workbuddy": {
+metadata: {"workbuddy": {
     "capabilities": ["multi_agent", "file_sandbox", "local_execution", "dynamic_skill_discovery", "background_daemons"],
     "permissions": ["folder_read", "folder_write"]
   }
@@ -43,7 +38,7 @@ metadata: {"openclaw": {
 
 # 足球彩票分析Agent v3.0 Pro
 
-## 如何使用本技能 (For LLM / OpenClaw)
+## 如何使用本技能
 
 当用户询问足球比赛预测或彩票投注时，你应该使用 `bash` 或 `run_command` 工具执行 `main.py` 脚本。
 返回的 JSON 或 文本日志会包含分析师、策略师和风控的详细建议。
@@ -173,18 +168,6 @@ metadata: {"openclaw": {
 | report_generator | 报告生成 |
 | professional_analyzer | 专业分析入口 |
 
-## Agent配置
+## Agent 配置
 
-系统使用OpenClaw多Agent架构，可在 `openclaw.json` 中配置：
-
-```json
-{
-  "agents": {
-    "orchestrator": "任务调度中心",
-    "scout": "情报搜集",
-    "analyst": "赔率分析",
-    "strategist": "策略制定",
-    "risk_manager": "风险管理"
-  }
-}
-```
+系统采用多 Agent 协作架构，相关角色与工作流由代码内的 Orchestrator 统一编排。

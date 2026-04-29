@@ -61,5 +61,4 @@ version: 1.0
 
 - 将 `async_scout.py` / `react_scout.py` 收敛为同一“工具流驱动 Scout”，同步版只保留适配层
 - 将 `syndicate_agents.py` 的 Prompt 版角色视为“实验沙箱”，生产路径只认 Contract + DomainKernel 校验
-- openclaw/runtime 与 standalone 的双份代码：以 standalone 为 source-of-truth，openclaw 采用同步生成或薄适配层
-
+- 多份代码并行维护会造成漂移：以 standalone 为唯一 source-of-truth，其他适配版应采用薄适配层或同步生成

@@ -6,7 +6,7 @@ trigger:
   - "筛选场次"
   - "推荐比赛"
   - "今天买什么"
-metadata: {"openclaw": {"os": ["darwin", "linux"]}}
+metadata: {"os": ["darwin", "linux"]}
 ---
 
 # 智能选场引擎

@@ -6,7 +6,7 @@ trigger:
   - "分析赔率"
   - "价值识别"
   - "庄家抽水"
-metadata: {"openclaw": {"os": ["darwin", "linux"]}}
+metadata: {"os": ["darwin", "linux"]}
 ---
 
 # 赔率分析工具

@@ -47,30 +47,10 @@ def _detect_duplicate_modules(*, repo_root: Optional[Path]) -> Dict[str, Any]:
     if not repo_root:
         return {"available": False, "count": 0, "samples": [], "reason": "repo_root_not_found"}
     standalone_root = (repo_root / "standalone_workspace").resolve()
-    openclaw_root = (repo_root / "openclaw_workspace" / "runtime" / "football_analyzer").resolve()
-    if not standalone_root.is_dir() or not openclaw_root.is_dir():
-        return {"available": False, "count": 0, "samples": [], "reason": "one_side_missing"}
+    if not standalone_root.is_dir():
+        return {"available": False, "count": 0, "samples": [], "reason": "standalone_missing"}
 
-    samples: List[Dict[str, Any]] = []
-    count = 0
-    for rel_dir in ["agents", "tools", "core", "scripts"]:
-        a_dir = standalone_root / rel_dir
-        b_dir = openclaw_root / rel_dir
-        a_files = {p.relative_to(a_dir): p for p in _list_py_files(a_dir)} if a_dir.is_dir() else {}
-        b_files = {p.relative_to(b_dir): p for p in _list_py_files(b_dir)} if b_dir.is_dir() else {}
-        overlap = sorted(set(a_files.keys()) & set(b_files.keys()))
-        count += len(overlap)
-        if len(samples) < 20:
-            for rel in overlap[: max(0, 20 - len(samples))]:
-                samples.append(
-                    {
-                        "relative": str(Path(rel_dir) / rel),
-                        "standalone": str(a_files[rel]),
-                        "openclaw": str(b_files[rel]),
-                    }
-                )
-
-    return {"available": True, "count": count, "samples": samples}
+    return {"available": False, "count": 0, "samples": [], "reason": "single_edition_repository"}
 
 
 def _detect_dual_registries(*, ws_root: Path, repo_root: Optional[Path]) -> Dict[str, Any]:
@@ -131,7 +111,7 @@ def _detect_mock_in_critical_chain(*, ws_root: Path, repo_root: Optional[Path]) 
 
 def _generate_drift_bloat_diagnosis(*, ws_root: Path, repo_root: Optional[Path], mismatch: Dict[str, Any]) -> Dict[str, Any]:
     defs = [
-        {"id": "dup_modules", "title": "重复模块", "description": "standalone 与 openclaw/runtime 存在同名同路径模块，导致双维护与漂移风险"},
+        {"id": "dup_modules", "title": "重复模块", "description": "存在同名同路径模块，导致双维护与漂移风险"},
         {"id": "multiple_data_paths", "title": "多数据路径", "description": "root/data 与 workspace/data（或 env var）并存，导致数据可见性与一致性漂移"},
         {"id": "dual_registries", "title": "双注册表", "description": "存在 tool_registry 与 tool_registry_v2 等并行注册入口，工具暴露与权限策略易分叉"},
         {"id": "mock_in_critical_chain", "title": "Mock 混入关键链路", "description": "关键链路使用 mock/dummy/fake/live_mock 等标记，可能污染实盘或让回归不可预测"},
@@ -225,7 +205,7 @@ def _generate_drift_bloat_diagnosis(*, ws_root: Path, repo_root: Optional[Path],
         },
         {
             "id": "merge_dual_edition_duplicates",
-            "title": "收敛双版本重复模块（选定单一 source-of-truth 并同步生成/复制）",
+            "title": "收敛重复模块（选定单一 source-of-truth 并同步生成/复制）",
             "files": [s.get("relative") for s in (dup.get("samples") or []) if s.get("relative")],
         },
     ]
@@ -254,7 +234,7 @@ def _generate_drift_bloat_diagnosis(*, ws_root: Path, repo_root: Optional[Path],
             "title": "瘦身：收敛重复模块与数据抓取路径",
             "goals": ["减少重复文件维护成本", "减少多路径回退导致的漂移"],
             "actions": [
-                {"id": "dedupe_modules", "change": "选定 canonical 目录（推荐 standalone_workspace），openclaw/runtime 通过同步生成"},
+                {"id": "dedupe_modules", "change": "选定 canonical 目录（推荐 standalone_workspace），其他适配版通过薄适配层或同步生成"},
                 {"id": "prune_fetch_paths", "change": "多数据源抓取只保留 1 条主路径 + 1 条明确降级路径（写入自检证据）"},
             ],
         },
@@ -275,7 +255,7 @@ def _generate_drift_bloat_diagnosis(*, ws_root: Path, repo_root: Optional[Path],
 
 def _find_repo_root(start: Path) -> Optional[Path]:
     for p in [start, *start.parents]:
-        if (p / "standalone_workspace").is_dir() and (p / "openclaw_workspace").is_dir():
+        if (p / "standalone_workspace").is_dir():
             return p
     return None
 

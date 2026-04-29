@@ -9,7 +9,7 @@ v2→v3 改动：
          analyze_dark_intel（依赖暗网数据，实际不常用）
          capture_and_analyze_trend（依赖浏览器截图，延迟高）
          optimize_portfolio（与凯利方差分析功能重叠）
-         list_clawhub_tools / call_clawhub_tool（市场工具发现，非核心分析流）
+    12→         （移除）外部技能市场工具发现（非核心分析流）
 
 保留的 18 个工具分 4 类：
 ├── 数据获取 (5): fetch_match_data, fetch_odds, fetch_standings, get_today_fixtures, get_live_odds

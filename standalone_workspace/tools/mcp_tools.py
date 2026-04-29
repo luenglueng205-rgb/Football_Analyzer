@@ -17,7 +17,6 @@ from tools.parlay_filter_matrix import ParlayFilterMatrix
 from tools.qrcode_ticket_generator import generate_ticket_qr
 from tools.notification_dispatcher import dispatch_notification
 from tools.memory_manager import MemoryManager
-from tools.clawhub_registry import ClawHubRegistry
 from tools.historical_db_loader import get_historical_database
 from standalone_workspace.tools.math.lottery_math_engine import LotteryMathEngine
 import os
@@ -86,46 +85,6 @@ def retrieve_team_memory(team_name: str, context: str = "") -> dict:
 def save_team_insight(team_name: str, insight: str, match_id: str = "unknown") -> dict:
     """在分析结束后，将重要的战术发现或模型领悟持久化到长期记忆库"""
     return _memory_manager.save_insight(team_name, insight, match_id)
-
-@ensure_protocol(mock=False, source="clawhub")
-def list_clawhub_tools() -> dict:
-    from tools.tool_registry_v2 import REGISTRY as INTERNAL_REGISTRY
-
-    try:
-        registry = ClawHubRegistry.load_from_env(existing_tool_names=set(INTERNAL_REGISTRY.keys()))
-        return {
-            "ok": True,
-            "data": {
-                "schema_version": registry.spec.schema_version,
-                "registry_path": str(registry.path) if registry.path else None,
-                "tools": registry.export_tools(),
-            },
-            "error": None,
-            "meta": {"mock": False, "source": "clawhub"},
-        }
-    except Exception as e:
-        return {
-            "ok": False,
-            "data": None,
-            "error": {"code": "REGISTRY_LOAD_FAILED", "message": str(e)},
-            "meta": {"mock": False, "source": "clawhub"},
-        }
-
-@ensure_protocol(mock=False, source="clawhub")
-async def call_clawhub_tool(tool_name: str, arguments: dict) -> dict:
-    from tools.tool_registry_v2 import REGISTRY as INTERNAL_REGISTRY
-
-    try:
-        registry = ClawHubRegistry.load_from_env(existing_tool_names=set(INTERNAL_REGISTRY.keys()))
-    except Exception as e:
-        return {
-            "ok": False,
-            "data": None,
-            "error": {"code": "REGISTRY_LOAD_FAILED", "message": str(e)},
-            "meta": {"mock": False, "source": "clawhub"},
-        }
-
-    return await registry.call_tool(tool_name, arguments or {})
 
 @ensure_protocol(mock=False, source="ledger")
 def execute_bet(match_id: str, lottery_type: str, selection: str, odds: float, stake: float) -> dict:
@@ -577,6 +536,4 @@ TOOL_MAPPING = {
     "send_webhook_notification": send_webhook_notification,
     "retrieve_team_memory": retrieve_team_memory,
     "save_team_insight": save_team_insight,
-    "list_clawhub_tools": list_clawhub_tools,
-    "call_clawhub_tool": call_clawhub_tool,
 }
